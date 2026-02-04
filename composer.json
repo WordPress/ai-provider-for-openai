@@ -1,0 +1,65 @@
+{
+    "name": "wordpress/openai-ai-provider",
+    "description": "OpenAI provider for the PHP AI Client SDK. Works as both a Composer package and WordPress plugin.",
+    "license": "GPL-2.0-or-later",
+    "type": "wordpress-plugin",
+    "keywords": [
+        "ai",
+        "openai",
+        "gpt",
+        "wordpress",
+        "llm"
+    ],
+    "authors": [
+        {
+            "name": "WordPress AI Team",
+            "homepage": "https://make.wordpress.org/ai/"
+        }
+    ],
+    "homepage": "https://github.com/WordPress/openai-ai-provider",
+    "support": {
+        "issues": "https://github.com/WordPress/openai-ai-provider/issues",
+        "source": "https://github.com/WordPress/openai-ai-provider"
+    },
+    "require": {
+        "php": ">=7.4"
+    },
+    "require-dev": {
+        "dealerdirect/phpcodesniffer-composer-installer": "^1.0",
+        "phpcompatibility/php-compatibility": "dev-develop",
+        "phpstan/phpstan": "~2.1",
+        "slevomat/coding-standard": "^8.20",
+        "squizlabs/php_codesniffer": "^3.7 || ^4.0",
+        "wordpress/php-ai-client": "^0.4 || dev-trunk"
+    },
+    "suggest": {
+        "wordpress/php-ai-client": "Required. The core PHP AI Client SDK that this provider extends."
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "autoload": {
+        "psr-4": {
+            "WordPress\\OpenAiAiProvider\\": "src/"
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "dealerdirect/phpcodesniffer-composer-installer": true,
+            "php-http/discovery": true
+        },
+        "optimize-autoloader": true,
+        "platform": {
+            "php": "7.4"
+        },
+        "sort-packages": true
+    },
+    "scripts": {
+        "lint": [
+            "@phpcs",
+            "@phpstan"
+        ],
+        "phpcbf": "phpcbf",
+        "phpcs": "phpcs",
+        "phpstan": "phpstan analyze --memory-limit=256M"
+    }
+}
