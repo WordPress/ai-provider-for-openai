@@ -22,14 +22,7 @@ This plugin provides OpenAI integration for the PHP AI Client SDK. It enables Wo
 * Web search support
 * Automatic provider registration
 
-**Supported Models:**
-
-Models are dynamically discovered from the API. Current flagship models include:
-
-* gpt-5.2, gpt-5-mini, gpt-5-nano (latest)
-* gpt-4.1, gpt-4.1-mini, gpt-4.1-nano
-* gpt-4o (multimodal)
-* gpt-image-1.5, dall-e-3 (image generation)
+Available models are dynamically discovered from the OpenAI API, including GPT models for text generation, DALL-E and GPT Image models for image generation, and TTS models for text-to-speech.
 
 **Requirements:**
 

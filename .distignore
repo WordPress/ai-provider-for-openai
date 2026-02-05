@@ -1,0 +1,9 @@
+/.github
+/.gitattributes
+/.gitignore
+/.distignore
+/composer.json
+/composer.lock
+/phpcs.xml.dist
+/phpstan.neon.dist
+/vendor

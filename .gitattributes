@@ -1,0 +1,10 @@
+# Exclude WordPress plugin bootstrap from Composer archive
+plugin.php export-ignore
+
+# Exclude development and CI files from Composer archive
+/.github export-ignore
+/.gitattributes export-ignore
+/.gitignore export-ignore
+/.distignore export-ignore
+/phpcs.xml.dist export-ignore
+/phpstan.neon.dist export-ignore
