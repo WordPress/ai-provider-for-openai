@@ -61,21 +61,7 @@ echo $result->toText();
 
 ## Supported Models
 
-This provider dynamically discovers available models from the OpenAI API. Current flagship models include:
-
-**Text Generation (GPT-5 Series)**
-- `gpt-5.2` - Latest flagship model
-- `gpt-5-mini` - Fast and affordable alternative
-- `gpt-5-nano` - Fastest, most affordable reasoning model
-
-**Text Generation (GPT-4 Series)**
-- `gpt-4.1` - Improved coding and instruction following
-- `gpt-4.1-mini`, `gpt-4.1-nano` - Smaller variants
-- `gpt-4o` - Versatile multimodal model
-
-**Image Generation**
-- `gpt-image-1.5` - Latest image generation model
-- `dall-e-3` - High-quality image generation
+Available models are dynamically discovered from the OpenAI API. This includes GPT models for text generation, DALL-E and GPT Image models for image generation, and TTS models for text-to-speech. See the [OpenAI documentation](https://platform.openai.com/docs/models) for the full list of available models.
 
 ## Configuration
 
