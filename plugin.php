@@ -27,6 +27,8 @@ if (!defined('ABSPATH')) {
     return;
 }
 
+require_once __DIR__ . '/src/autoload.php';
+
 /**
  * Registers the OpenAI provider with the AI Client.
  *
