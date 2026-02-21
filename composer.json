@@ -1,6 +1,6 @@
 {
-    "name": "wordpress/openai-ai-provider",
-    "description": "OpenAI provider for the PHP AI Client SDK. Works as both a Composer package and WordPress plugin.",
+    "name": "wordpress/ai-provider-for-openai",
+    "description": "AI Provider for OpenAI for the PHP AI Client SDK. Works as both a Composer package and WordPress plugin.",
     "license": "GPL-2.0-or-later",
     "type": "wordpress-plugin",
     "keywords": [
@@ -16,10 +16,10 @@
             "homepage": "https://make.wordpress.org/ai/"
         }
     ],
-    "homepage": "https://github.com/WordPress/openai-ai-provider",
+    "homepage": "https://github.com/WordPress/ai-provider-for-openai",
     "support": {
-        "issues": "https://github.com/WordPress/openai-ai-provider/issues",
-        "source": "https://github.com/WordPress/openai-ai-provider"
+        "issues": "https://github.com/WordPress/ai-provider-for-openai/issues",
+        "source": "https://github.com/WordPress/ai-provider-for-openai"
     },
     "require": {
         "php": ">=7.4"

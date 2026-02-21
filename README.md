@@ -1,6 +1,6 @@
-# OpenAI Provider
+# AI Provider for OpenAI
 
-An OpenAI provider for the [PHP AI Client](https://github.com/WordPress/php-ai-client) SDK. Works as both a Composer package and a WordPress plugin.
+An AI Provider for OpenAI for the [PHP AI Client](https://github.com/WordPress/php-ai-client) SDK. Works as both a Composer package and a WordPress plugin.
 
 ## Requirements
 
@@ -12,13 +12,13 @@ An OpenAI provider for the [PHP AI Client](https://github.com/WordPress/php-ai-c
 ### As a Composer Package
 
 ```bash
-composer require wordpress/openai-ai-provider
+composer require wordpress/ai-provider-for-openai
 ```
 
 ### As a WordPress Plugin
 
 1. Download the plugin files
-2. Upload to `/wp-content/plugins/openai-ai-provider/`
+2. Upload to `/wp-content/plugins/ai-provider-for-openai/`
 3. Ensure the PHP AI Client plugin is installed and activated
 4. Activate the plugin through the WordPress admin
 
