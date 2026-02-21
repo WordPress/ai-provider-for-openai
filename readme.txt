@@ -1,4 +1,4 @@
-=== OpenAI Provider ===
+=== AI Provider for OpenAI ===
 Contributors: wordpressdotorg
 Tags: ai, openai, gpt, chatgpt, artificial-intelligence
 Requires at least: 6.9
@@ -8,7 +8,7 @@ Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-OpenAI provider for the PHP AI Client SDK.
+AI Provider for OpenAI for the PHP AI Client SDK.
 
 == Description ==
 
@@ -33,7 +33,7 @@ Available models are dynamically discovered from the OpenAI API, including GPT m
 == Installation ==
 
 1. Ensure the PHP AI Client plugin is installed and activated
-2. Upload the plugin files to `/wp-content/plugins/openai-ai-provider/`
+2. Upload the plugin files to `/wp-content/plugins/ai-provider-for-openai/`
 3. Activate the plugin through the 'Plugins' menu in WordPress
 4. Configure your OpenAI API key via the `OPENAI_API_KEY` environment variable or constant
 

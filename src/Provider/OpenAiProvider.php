@@ -19,7 +19,7 @@ use WordPress\OpenAiAiProvider\Models\OpenAiImageGenerationModel;
 use WordPress\OpenAiAiProvider\Models\OpenAiTextGenerationModel;
 
 /**
- * Class for the OpenAI provider.
+ * Class for the AI Provider for OpenAI.
  *
  * @since 1.0.0
  */
