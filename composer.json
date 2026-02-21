@@ -2,7 +2,6 @@
     "name": "wordpress/ai-provider-for-openai",
     "description": "AI Provider for OpenAI for the PHP AI Client SDK. Works as both a Composer package and WordPress plugin.",
     "license": "GPL-2.0-or-later",
-    "type": "wordpress-plugin",
     "keywords": [
         "ai",
         "openai",
