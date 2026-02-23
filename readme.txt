@@ -27,8 +27,8 @@ Available models are dynamically discovered from the OpenAI API, including GPT m
 **Requirements:**
 
 * PHP 7.4 or higher
-* WordPress 7.0 or higher
-    * If using an older WordPress release, the [wordpress/php-ai-client](https://github.com/WordPress/php-ai-client) package must be installed
+* For WordPress 6.9, the [wordpress/php-ai-client](https://github.com/WordPress/php-ai-client) package must be installed
+* For WordPress 7.0 and above, no additional changes are required
 * OpenAI API key
 
 == Installation ==
