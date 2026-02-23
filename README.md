@@ -5,7 +5,8 @@ An AI Provider for OpenAI for the [PHP AI Client](https://github.com/WordPress/p
 ## Requirements
 
 - PHP 7.4 or higher
-- [wordpress/php-ai-client](https://github.com/WordPress/php-ai-client) must be installed
+- When using with WordPress, requires WordPress 7.0 or higher
+    - If using an older WordPress release, the [wordpress/php-ai-client](https://github.com/WordPress/php-ai-client) package must be installed
 
 ## Installation
 

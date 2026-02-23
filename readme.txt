@@ -2,7 +2,7 @@
 Contributors: wordpressdotorg
 Tags: ai, openai, gpt, chatgpt, artificial-intelligence
 Requires at least: 6.9
-Tested up to: 6.9
+Tested up to: 7.0
 Stable tag: 1.0.0
 Requires PHP: 7.4
 License: GPL-2.0-or-later
@@ -27,15 +27,15 @@ Available models are dynamically discovered from the OpenAI API, including GPT m
 **Requirements:**
 
 * PHP 7.4 or higher
-* PHP AI Client plugin must be installed and activated
+* For WordPress 6.9, the [wordpress/php-ai-client](https://github.com/WordPress/php-ai-client) package must be installed
+* For WordPress 7.0 and above, no additional changes are required
 * OpenAI API key
 
 == Installation ==
 
-1. Ensure the PHP AI Client plugin is installed and activated
-2. Upload the plugin files to `/wp-content/plugins/ai-provider-for-openai/`
-3. Activate the plugin through the 'Plugins' menu in WordPress
-4. Configure your OpenAI API key via the `OPENAI_API_KEY` environment variable or constant
+1. Upload the plugin files to `/wp-content/plugins/ai-provider-for-openai/`
+2. Activate the plugin through the 'Plugins' menu in WordPress
+3. Configure your OpenAI API key via the `OPENAI_API_KEY` environment variable or constant
 
 == Frequently Asked Questions ==
 
