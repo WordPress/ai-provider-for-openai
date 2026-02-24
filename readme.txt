@@ -1,6 +1,6 @@
 === AI Provider for OpenAI ===
 Contributors: wordpressdotorg
-Tags: ai, openai, gpt, chatgpt, artificial-intelligence
+Tags: ai, openai, gpt, artificial-intelligence, connector
 Requires at least: 6.9
 Tested up to: 7.0
 Stable tag: 1.0.1
