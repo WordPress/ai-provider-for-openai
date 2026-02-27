@@ -57,6 +57,17 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
             throw ResponseException::fromMissingData('OpenAI', 'data');
         }
 
+        $allModalityCombinationsWithText = [
+            [ModalityEnum::text()],
+            [ModalityEnum::text(), ModalityEnum::image()],
+            [ModalityEnum::text(), ModalityEnum::audio()],
+            [ModalityEnum::text(), ModalityEnum::document()],
+            [ModalityEnum::text(), ModalityEnum::image(), ModalityEnum::audio()],
+            [ModalityEnum::text(), ModalityEnum::image(), ModalityEnum::document()],
+            [ModalityEnum::text(), ModalityEnum::audio(), ModalityEnum::document()],
+            [ModalityEnum::text(), ModalityEnum::image(), ModalityEnum::audio(), ModalityEnum::document()],
+        ];
+
         // Unfortunately, the OpenAI API does not return model capabilities, so we have to hardcode them here.
         $gptCapabilities = [
             CapabilityEnum::textGeneration(),
@@ -86,13 +97,7 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
         $gptMultimodalInputOptions = array_merge($gptBaseOptions, [
             new SupportedOption(
                 OptionEnum::inputModalities(),
-                [
-                    [ModalityEnum::text()],
-                    [ModalityEnum::text(), ModalityEnum::image()],
-                    [ModalityEnum::text(), ModalityEnum::image(), ModalityEnum::audio()],
-                    [ModalityEnum::text(), ModalityEnum::document()],
-                    [ModalityEnum::text(), ModalityEnum::image(), ModalityEnum::document()],
-                ]
+                $allModalityCombinationsWithText
             ),
             new SupportedOption(OptionEnum::outputModalities(), [[ModalityEnum::text()]]),
         ]);
@@ -101,10 +106,8 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
                 OptionEnum::inputModalities(),
                 [
                     [ModalityEnum::text()],
-                    [ModalityEnum::text(), ModalityEnum::image()],
-                    [ModalityEnum::text(), ModalityEnum::image(), ModalityEnum::audio()],
-                    [ModalityEnum::text(), ModalityEnum::document()],
-                    [ModalityEnum::text(), ModalityEnum::image(), ModalityEnum::document()],
+                    [ModalityEnum::audio()],
+                    [ModalityEnum::text(), ModalityEnum::audio()],
                 ]
             ),
             new SupportedOption(
