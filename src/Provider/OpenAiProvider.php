@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace WordPress\OpenAiAiProvider\Provider;
 
+use WordPress\AiClient\AiClient;
 use WordPress\AiClient\Common\Exception\RuntimeException;
 use WordPress\AiClient\Providers\ApiBasedImplementation\AbstractApiProvider;
 use WordPress\AiClient\Providers\ApiBasedImplementation\ListModelsApiBasedProviderAvailability;
@@ -72,13 +73,24 @@ class OpenAiProvider extends AbstractApiProvider
      */
     protected static function createProviderMetadata(): ProviderMetadata
     {
-        return new ProviderMetadata(
+        $providerMetadataArgs = [
             'openai',
             'OpenAI',
             ProviderTypeEnum::cloud(),
             'https://platform.openai.com/api-keys',
             RequestAuthenticationMethod::apiKey()
-        );
+        ];
+        // Provider description support was added in 1.2.0.
+        if (version_compare(AiClient::VERSION, '1.2.0', '>=')) {
+            // For WordPress, we should translate the description.
+            if (function_exists('__')) {
+                // phpcs:ignore Generic.Files.LineLength.TooLong
+                $providerMetadataArgs[] = __('Text and image generation with GPT and Dall-E.', 'ai-provider-for-openai');
+            } else {
+                $providerMetadataArgs[] = 'Text and image generation with GPT and Dall-E.';
+            }
+        }
+        return new ProviderMetadata(...$providerMetadataArgs);
     }
 
     /**
