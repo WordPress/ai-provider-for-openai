@@ -133,7 +133,24 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
             CapabilityEnum::imageGeneration(),
             CapabilityEnum::chatHistory(),
         ];
-        $dalleImageOptions = [
+        $dalle2Capabilities = [
+            CapabilityEnum::imageGeneration(),
+            CapabilityEnum::chatHistory(),
+        ];
+        $dalle2Options = [
+            new SupportedOption(OptionEnum::inputModalities(), [
+                [ModalityEnum::text()],
+                [ModalityEnum::text(), ModalityEnum::image()],
+            ]),
+            new SupportedOption(OptionEnum::outputModalities(), [[ModalityEnum::image()]]),
+            new SupportedOption(OptionEnum::candidateCount()),
+            new SupportedOption(OptionEnum::outputMimeType(), ['image/png']),
+            new SupportedOption(OptionEnum::outputFileType(), [FileTypeEnum::inline(), FileTypeEnum::remote()]),
+            new SupportedOption(OptionEnum::outputMediaOrientation(), [MediaOrientationEnum::square()]),
+            new SupportedOption(OptionEnum::outputMediaAspectRatio(), ['1:1']),
+            new SupportedOption(OptionEnum::customOptions()),
+        ];
+        $dalle3Options = [
             new SupportedOption(OptionEnum::inputModalities(), [[ModalityEnum::text()]]),
             new SupportedOption(OptionEnum::outputModalities(), [[ModalityEnum::image()]]),
             new SupportedOption(OptionEnum::candidateCount()),
@@ -193,18 +210,26 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
                     $gptSearchOptions,
                     $imageCapabilities,
                     $gptImageCapabilities,
-                    $dalleImageOptions,
                     $gptImageOptions,
+                    $dalle2Capabilities,
+                    $dalle2Options,
+                    $dalle3Options,
                     $ttsCapabilities,
                     $ttsOptions
                 ): ModelMetadata {
                     $modelId = $modelData['id'];
-                    if (str_starts_with($modelId, 'gpt-image-')) {
+                    if (
+                        str_starts_with($modelId, 'gpt-image-') ||
+                        str_starts_with($modelId, 'chatgpt-image-')
+                    ) {
                         $modelCaps = $gptImageCapabilities;
                         $modelOptions = $gptImageOptions;
+                    } elseif ($modelId === 'dall-e-2') {
+                        $modelCaps = $dalle2Capabilities;
+                        $modelOptions = $dalle2Options;
                     } elseif (str_starts_with($modelId, 'dall-e-')) {
                         $modelCaps = $imageCapabilities;
-                        $modelOptions = $dalleImageOptions;
+                        $modelOptions = $dalle3Options;
                     } elseif (
                         str_starts_with($modelId, 'tts-') ||
                         str_contains($modelId, '-tts')

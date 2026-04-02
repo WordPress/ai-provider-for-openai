@@ -18,11 +18,11 @@ use WordPress\OpenAiAiProvider\Provider\OpenAiProvider;
  * Class for an OpenAI image generation model using the Images API.
  *
  * This uses the Images API directly to generate images with GPT image models
- * (gpt-image-1, etc.) and DALL-E models (dall-e-2, dall-e-3).
+ * (gpt-image-1, chatgpt-image-latest, etc.) and DALL-E models (dall-e-2, dall-e-3).
  *
- * GPT image models also support image editing via the `/images/edits` endpoint.
- * Editing is triggered when a multi-message prompt is provided (a model message
- * with the source image and a user message with edit instructions).
+ * GPT image models and DALL-E 2 also support image editing via the `/images/edits`
+ * endpoint. Editing is triggered when a multi-message prompt is provided (a model
+ * message with the source image and a user message with edit instructions).
  *
  * @since 1.0.0
  */
@@ -31,25 +31,19 @@ class OpenAiImageGenerationModel extends AbstractOpenAiCompatibleImageGeneration
     /**
      * {@inheritDoc}
      *
-     * Routes multi-message prompts for GPT image models to the `/images/edits` endpoint
-     * instead of `/images/generations`.
+     * Routes multi-message prompts to the `/images/edits` endpoint instead of
+     * `/images/generations`. Only models declaring the `chatHistory` capability
+     * will receive multi-message prompts from the SDK.
      *
      * @since n.e.x.t
      *
      * @param list<Message> $prompt The prompt to generate or edit an image for.
      * @return GenerativeAiResult The generative AI result.
-     * @throws InvalidArgumentException If multi-message prompts are used with a non-gpt-image model.
      */
     public function generateImageResult(array $prompt): GenerativeAiResult
     {
-        if (count($prompt) === 1) {
+        if (count($prompt) <= 1) {
             return parent::generateImageResult($prompt);
-        }
-
-        if (!$this->isGptImageModel($this->metadata()->getId())) {
-            throw new InvalidArgumentException(
-                'Image editing via multi-message prompts is only supported for gpt-image-* models.'
-            );
         }
 
         return $this->generateImageEditResult($prompt);
@@ -129,6 +123,9 @@ class OpenAiImageGenerationModel extends AbstractOpenAiCompatibleImageGeneration
     /**
      * Checks if the given model ID is a GPT image model.
      *
+     * This includes both `gpt-image-*` and `chatgpt-image-*` model families,
+     * which share the same API capabilities and parameter format.
+     *
      * @since 1.0.0
      *
      * @param string $modelId The model ID to check.
@@ -136,7 +133,8 @@ class OpenAiImageGenerationModel extends AbstractOpenAiCompatibleImageGeneration
      */
     protected function isGptImageModel(string $modelId): bool
     {
-        return str_starts_with($modelId, 'gpt-image-');
+        return str_starts_with($modelId, 'gpt-image-')
+            || str_starts_with($modelId, 'chatgpt-image-');
     }
 
     /**
@@ -205,11 +203,18 @@ class OpenAiImageGenerationModel extends AbstractOpenAiCompatibleImageGeneration
         $response = $this->getHttpTransporter()->send($request);
         $this->throwIfNotSuccessful($response);
 
-        $outputFormat = isset($params['output_format']) && is_string($params['output_format'])
-            ? $params['output_format']
-            : 'png';
+        // Determine output MIME type based on model family.
+        if ($this->isGptImageModel($this->metadata()->getId())) {
+            $outputFormat = isset($params['output_format']) && is_string($params['output_format'])
+                ? $params['output_format']
+                : 'png';
+            $outputMimeType = 'image/' . $outputFormat;
+        } else {
+            // DALL-E 2 always returns PNG.
+            $outputMimeType = 'image/png';
+        }
 
-        return $this->parseResponseToGenerativeAiResult($response, 'image/' . $outputFormat);
+        return $this->parseResponseToGenerativeAiResult($response, $outputMimeType);
     }
 
     /**
@@ -262,6 +267,10 @@ class OpenAiImageGenerationModel extends AbstractOpenAiCompatibleImageGeneration
     /**
      * Prepares the parameters for an image edit request.
      *
+     * Parameter handling differs by model family:
+     * - GPT image models use `output_format` and `prepareGptImageSizeParam()` sizes.
+     * - DALL-E 2 uses `response_format` (url/b64_json) and `prepareDalleSizeParam()` sizes.
+     *
      * @since n.e.x.t
      *
      * @param string $textPrompt The text instruction for the edit.
@@ -271,9 +280,11 @@ class OpenAiImageGenerationModel extends AbstractOpenAiCompatibleImageGeneration
     protected function prepareEditParams(string $textPrompt): array
     {
         $config = $this->getConfig();
+        $modelId = $this->metadata()->getId();
+        $isGptImage = $this->isGptImageModel($modelId);
 
         $params = [
-            'model' => $this->metadata()->getId(),
+            'model' => $modelId,
             'prompt' => $textPrompt,
         ];
 
@@ -282,17 +293,39 @@ class OpenAiImageGenerationModel extends AbstractOpenAiCompatibleImageGeneration
             $params['n'] = $candidateCount;
         }
 
-        $outputMimeType = $config->getOutputMimeType();
-        if ($outputMimeType !== null) {
-            $params['output_format'] = (string) preg_replace('/^image\//', '', $outputMimeType);
-        }
-
+        // Size handling differs by model family.
         $outputMediaOrientation = $config->getOutputMediaOrientation();
         $outputMediaAspectRatio = $config->getOutputMediaAspectRatio();
         if ($outputMediaOrientation !== null || $outputMediaAspectRatio !== null) {
-            $params['size'] = $this->prepareGptImageSizeParam($outputMediaOrientation, $outputMediaAspectRatio);
+            if ($isGptImage) {
+                $params['size'] = $this->prepareGptImageSizeParam($outputMediaOrientation, $outputMediaAspectRatio);
+            } else {
+                $params['size'] = $this->prepareDalleSizeParam(
+                    $modelId,
+                    $outputMediaOrientation,
+                    $outputMediaAspectRatio
+                );
+            }
         }
 
+        // Output format handling differs by model family.
+        if ($isGptImage) {
+            // GPT image models use output_format (png, jpeg, webp).
+            $outputMimeType = $config->getOutputMimeType();
+            if ($outputMimeType !== null) {
+                $params['output_format'] = (string) preg_replace('/^image\//', '', $outputMimeType);
+            }
+        } else {
+            // DALL-E 2 uses response_format (url or b64_json).
+            $outputFileType = $config->getOutputFileType();
+            if ($outputFileType !== null && $outputFileType->isRemote()) {
+                $params['response_format'] = 'url';
+            } else {
+                $params['response_format'] = 'b64_json';
+            }
+        }
+
+        // Custom options (e.g., quality, background, mask for GPT models).
         $customOptions = $config->getCustomOptions();
         foreach ($customOptions as $key => $value) {
             if (isset($params[$key])) {
