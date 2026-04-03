@@ -129,14 +129,6 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
         $imageCapabilities = [
             CapabilityEnum::imageGeneration(),
         ];
-        $gptImageCapabilities = [
-            CapabilityEnum::imageGeneration(),
-            CapabilityEnum::chatHistory(),
-        ];
-        $dalle2Capabilities = [
-            CapabilityEnum::imageGeneration(),
-            CapabilityEnum::chatHistory(),
-        ];
         $dalle2Options = [
             new SupportedOption(OptionEnum::inputModalities(), [
                 [ModalityEnum::text()],
@@ -209,9 +201,7 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
                     $gptMultimodalSpeechOutputOptions,
                     $gptSearchOptions,
                     $imageCapabilities,
-                    $gptImageCapabilities,
                     $gptImageOptions,
-                    $dalle2Capabilities,
                     $dalle2Options,
                     $dalle3Options,
                     $ttsCapabilities,
@@ -222,10 +212,10 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
                         str_starts_with($modelId, 'gpt-image-') ||
                         str_starts_with($modelId, 'chatgpt-image-')
                     ) {
-                        $modelCaps = $gptImageCapabilities;
+                        $modelCaps = $imageCapabilities;
                         $modelOptions = $gptImageOptions;
                     } elseif ($modelId === 'dall-e-2') {
-                        $modelCaps = $dalle2Capabilities;
+                        $modelCaps = $imageCapabilities;
                         $modelOptions = $dalle2Options;
                     } elseif (str_starts_with($modelId, 'dall-e-')) {
                         $modelCaps = $imageCapabilities;

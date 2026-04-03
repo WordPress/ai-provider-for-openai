@@ -21,8 +21,8 @@ use WordPress\OpenAiAiProvider\Provider\OpenAiProvider;
  * (gpt-image-1, chatgpt-image-latest, etc.) and DALL-E models (dall-e-2, dall-e-3).
  *
  * GPT image models and DALL-E 2 also support image editing via the `/images/edits`
- * endpoint. Editing is triggered when a multi-message prompt is provided (a model
- * message with the source image and a user message with edit instructions).
+ * endpoint. Editing is triggered when the prompt message contains an image file
+ * alongside the text instruction (i.e. a `[text, image]` input modality).
  *
  * @since 1.0.0
  */
@@ -31,9 +31,9 @@ class OpenAiImageGenerationModel extends AbstractOpenAiCompatibleImageGeneration
     /**
      * {@inheritDoc}
      *
-     * Routes multi-message prompts to the `/images/edits` endpoint instead of
-     * `/images/generations`. Only models declaring the `chatHistory` capability
-     * will receive multi-message prompts from the SDK.
+     * When the prompt contains an image file (text + image input), the request is
+     * routed to the `/images/edits` endpoint instead of `/images/generations`.
+     * This supports GPT image models (gpt-image-*, chatgpt-image-*) and DALL-E 2.
      *
      * @since n.e.x.t
      *
@@ -42,11 +42,32 @@ class OpenAiImageGenerationModel extends AbstractOpenAiCompatibleImageGeneration
      */
     public function generateImageResult(array $prompt): GenerativeAiResult
     {
-        if (count($prompt) <= 1) {
-            return parent::generateImageResult($prompt);
+        if ($this->promptContainsImage($prompt)) {
+            return $this->generateImageEditResult($prompt);
         }
 
-        return $this->generateImageEditResult($prompt);
+        return parent::generateImageResult($prompt);
+    }
+
+    /**
+     * Checks whether any message in the prompt contains an image file.
+     *
+     * @since n.e.x.t
+     *
+     * @param list<Message> $prompt The prompt messages to check.
+     * @return bool True if the prompt contains at least one image file.
+     */
+    protected function promptContainsImage(array $prompt): bool
+    {
+        foreach ($prompt as $message) {
+            foreach ($message->getParts() as $part) {
+                $file = $part->getFile();
+                if ($file !== null && $file->isImage()) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
@@ -177,9 +198,12 @@ class OpenAiImageGenerationModel extends AbstractOpenAiCompatibleImageGeneration
     /**
      * Generates an image edit result using the `/images/edits` endpoint.
      *
+     * The prompt should contain a single user message with both text (the edit instruction)
+     * and an image file (the source image to edit).
+     *
      * @since n.e.x.t
      *
-     * @param list<Message> $prompt A multi-message prompt containing the source image and edit instructions.
+     * @param list<Message> $prompt The prompt containing the source image and edit instructions.
      * @return GenerativeAiResult The generative AI result containing the edited image.
      * @throws InvalidArgumentException If the prompt does not contain a valid image or text instruction.
      */
@@ -218,11 +242,15 @@ class OpenAiImageGenerationModel extends AbstractOpenAiCompatibleImageGeneration
     }
 
     /**
-     * Extracts the source image file and edit text instruction from a multi-message prompt.
+     * Extracts the source image file and edit text instruction from the prompt.
+     *
+     * Iterates all message parts to find the first image file and the first text part.
+     * Both are expected within a single user message, but this method is lenient about
+     * the message structure to allow flexibility.
      *
      * @since n.e.x.t
      *
-     * @param list<Message> $prompt The multi-message prompt to extract data from.
+     * @param list<Message> $prompt The prompt to extract data from.
      * @return array{image: File, text: string} The extracted image file and text instruction.
      * @throws InvalidArgumentException If no image or no user text instruction is found.
      */
@@ -389,7 +417,11 @@ class OpenAiImageGenerationModel extends AbstractOpenAiCompatibleImageGeneration
         $body = '';
 
         foreach ($params as $key => $value) {
-            /** @var scalar $value */
+            if (!is_scalar($value)) {
+                throw new InvalidArgumentException(
+                    sprintf('The parameter "%s" must be a scalar value for multipart requests.', $key)
+                );
+            }
             $body .= '--' . $boundary . "\r\n";
             $body .= 'Content-Disposition: form-data; name="' . $key . '"' . "\r\n\r\n";
             $body .= (string) $value . "\r\n";
