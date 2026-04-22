@@ -195,6 +195,7 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
                     // Fine-tuned models use the format "ft:{base_model}:{org}:{name}:{id}".
                     // Extract the base model ID for capability detection, but keep the
                     // original model ID for the metadata so API requests use the fine-tuned model.
+                    $originalModelId = $modelId;
                     if (str_starts_with($modelId, 'ft:')) {
                         $parts = explode(':', $modelId, 3);
                         if (isset($parts[1])) {
@@ -245,8 +246,8 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
                     }
 
                     return new ModelMetadata(
-                        $modelData['id'],
-                        $modelData['id'], // The OpenAI API does not return a display name.
+                        $originalModelId,
+                        $originalModelId, // The OpenAI API does not return a display name.
                         $modelCaps,
                         $modelOptions
                     );
