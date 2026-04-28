@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace WordPress\OpenAiAiProvider\Models;
 
+use WordPress\AiClient\AiClient;
 use WordPress\AiClient\Common\Exception\InvalidArgumentException;
 use WordPress\AiClient\Common\Exception\RuntimeException;
 use WordPress\AiClient\Messages\DTO\Message;
 use WordPress\AiClient\Messages\DTO\MessagePart;
+use WordPress\AiClient\Messages\Enums\MessagePartChannelEnum;
 use WordPress\AiClient\Messages\Enums\MessageRoleEnum;
 use WordPress\AiClient\Providers\ApiBasedImplementation\AbstractApiBasedModel;
 use WordPress\AiClient\Providers\Http\DTO\Request;
@@ -195,9 +197,9 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
     /**
      * Validates that the messages are appropriate for the OpenAI Responses API.
      *
-     * The OpenAI Responses API requires function calls and function responses to be
-     * sent as top-level input items rather than nested in message content. As such,
-     * they must be the only part in a message.
+     * The OpenAI Responses API requires function calls, function responses, and
+     * reasoning items to be sent as top-level input items rather than nested in
+     * message content. As such, they must be the only part in a message.
      *
      * @since 1.0.0
      *
@@ -228,6 +230,12 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
                         'Function response parts must be the only part in a message for the OpenAI Responses API.'
                     );
                 }
+
+                if ($part->getChannel()->isThought()) {
+                    throw new InvalidArgumentException(
+                        'Thought parts must be the only part in a message for the OpenAI Responses API.'
+                    );
+                }
             }
         }
     }
@@ -253,10 +261,15 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
         foreach ($parts as $part) {
             $partData = $this->getMessagePartData($part, $role);
 
-            // Function calls and responses are top-level items, not wrapped in a message.
-            // validateMessages() ensures these are the only part in a message.
+            // Function calls, responses, and reasoning items are top-level items,
+            // not wrapped in a message. validateMessages() ensures these are the
+            // only part in a message.
             $partType = $partData['type'] ?? '';
-            if ($partType === 'function_call' || $partType === 'function_call_output') {
+            if (
+                $partType === 'function_call'
+                || $partType === 'function_call_output'
+                || $partType === 'reasoning'
+            ) {
                 return $partData;
             }
 
@@ -299,6 +312,9 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
     {
         $type = $part->getType();
         if ($type->isText()) {
+            if ($part->getChannel()->isThought()) {
+                return $this->buildReasoningInputItem($part);
+            }
             return [
                 'type' => $role->isModel() ? 'output_text' : 'input_text',
                 'text' => $part->getText(),
@@ -386,6 +402,44 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
                 $type
             )
         );
+    }
+
+    /**
+     * Builds a reasoning top-level input item from a thought-channel message part.
+     *
+     * The OpenAI Responses API expects reasoning items as top-level input items with a defined shape.
+     * Because the SDK's thought signature is a single opaque string but OpenAI needs those fields to round-trip,
+     * the provider encodes those fields to JSON into the signature on the inbound side and decodes it here.
+     *
+     * @since x.x.x
+     *
+     * @param MessagePart $part The thought-channel message part.
+     * @return array<string, mixed> The reasoning input item.
+     */
+    protected function buildReasoningInputItem(MessagePart $part): array
+    {
+        $data = ['type' => 'reasoning'];
+        if (version_compare(AiClient::VERSION, '1.3.0', '>=') && method_exists($part, 'getThoughtSignature')) {
+            $signature = $part->getThoughtSignature();
+            if (is_string($signature)) {
+                $decoded = json_decode($signature, true);
+                if (is_array($decoded)) {
+                    if (isset($decoded['id']) && is_string($decoded['id'])) {
+                        $data['id'] = $decoded['id'];
+                    }
+                    if (isset($decoded['encrypted_content']) && is_string($decoded['encrypted_content'])) {
+                        $data['encrypted_content'] = $decoded['encrypted_content'];
+                    }
+                    if (isset($decoded['summary']) && is_array($decoded['summary'])) {
+                        $data['summary'] = $decoded['summary'];
+                    }
+                }
+            }
+        }
+        if (!isset($data['summary'])) {
+            $data['summary'] = [];
+        }
+        return $data;
     }
 
     /**
@@ -515,6 +569,11 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
             return $this->parseFunctionCallOutputToCandidate($outputItem, $index);
         }
 
+        // Handle reasoning output type (top-level reasoning item).
+        if ($type === 'reasoning') {
+            return $this->parseReasoningOutputToCandidate($outputItem);
+        }
+
         // Skip other output types for now (e.g., image_generation_call is handled in image model).
         return null;
     }
@@ -615,6 +674,77 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
         $message = new Message(MessageRoleEnum::model(), [$part]);
 
         return new Candidate($message, FinishReasonEnum::toolCalls());
+    }
+
+    /**
+     * Parses a reasoning output item into a Candidate object.
+     * The human-readable summary text is concatenated into the MessagePart's text field for display.
+     *
+     * @since x.x.x
+     *
+     * @param array<string, mixed> $outputItem The output item data.
+     * @return Candidate The parsed candidate.
+     */
+    protected function parseReasoningOutputToCandidate(array $outputItem): Candidate
+    {
+        $summary = isset($outputItem['summary']) && is_array($outputItem['summary'])
+            ? $outputItem['summary']
+            : [];
+        $text = $this->extractSummaryText($summary);
+
+        $signature = null;
+        if (version_compare(AiClient::VERSION, '1.3.0', '>=')) {
+            $signaturePayload = [];
+            if (isset($outputItem['id']) && is_string($outputItem['id'])) {
+                $signaturePayload['id'] = $outputItem['id'];
+            }
+            if (
+                isset($outputItem['encrypted_content'])
+                && is_string($outputItem['encrypted_content'])
+            ) {
+                $signaturePayload['encrypted_content'] = $outputItem['encrypted_content'];
+            }
+            if (!empty($summary)) {
+                $signaturePayload['summary'] = $summary;
+            }
+            if (!empty($signaturePayload)) {
+                $encoded = json_encode($signaturePayload);
+                if (false !== $encoded) {
+                    $signature = $encoded;
+                }
+            }
+        }
+
+        $messagePartArgs = [$text, MessagePartChannelEnum::thought()];
+        if (null !== $signature) {
+            $messagePartArgs[] = $signature;
+        }
+        $part = new MessagePart(...$messagePartArgs);
+        $message = new Message(MessageRoleEnum::model(), [$part]);
+
+        return new Candidate($message, FinishReasonEnum::stop());
+    }
+
+    /**
+     * Extracts concatenated human-readable summary text from a reasoning item summary array.
+     *
+     * @since x.x.x
+     *
+     * @param array<int|string, mixed> $summary The reasoning summary array.
+     * @return string The concatenated summary text.
+     */
+    protected function extractSummaryText(array $summary): string
+    {
+        $texts = [];
+        foreach ($summary as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            if (isset($entry['text']) && is_string($entry['text'])) {
+                $texts[] = $entry['text'];
+            }
+        }
+        return implode("\n\n", $texts);
     }
 
     /**
