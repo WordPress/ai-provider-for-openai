@@ -208,11 +208,18 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
                         $modelCaps = $ttsCapabilities;
                         $modelOptions = $ttsOptions;
                     } elseif (
-                        (str_starts_with($modelId, 'gpt-') || str_starts_with($modelId, 'o1-'))
+                        (
+                            str_starts_with($modelId, 'gpt-')
+                            || str_starts_with($modelId, 'o1')
+                            || str_starts_with($modelId, 'o3')
+                            || str_starts_with($modelId, 'o4')
+                            || $modelId === 'codex-mini-latest'
+                        )
                         && !str_contains($modelId, '-instruct')
                         && !str_contains($modelId, '-realtime')
+                        && !str_contains($modelId, '-transcribe')
                     ) {
-                        if (str_starts_with($modelId, 'gpt-4o')) {
+                        if (self::supportsMultimodalTextInput($modelId)) {
                             $modelCaps = $gptCapabilities;
                             $modelOptions = $gptMultimodalInputOptions;
                             // New multimodal output model for audio generation.
@@ -247,6 +254,22 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
         usort($models, [$this, 'modelSortCallback']);
 
         return $models;
+    }
+
+    /**
+     * Checks whether an OpenAI text generation model supports multimodal input.
+     *
+     * @since n.e.x.t
+     *
+     * @param string $modelId The model ID.
+     * @return bool True if the model supports multimodal text input, false otherwise.
+     */
+    private static function supportsMultimodalTextInput(string $modelId): bool
+    {
+        return (bool) preg_match(
+            '/^(codex-mini-latest|gpt-4-turbo|gpt-4o|gpt-4\.1|gpt-5(?:\.\d+)?|o1|o3|o4)/',
+            $modelId
+        );
     }
 
     /**
