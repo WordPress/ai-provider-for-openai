@@ -90,6 +90,10 @@ class OpenAiProvider extends AbstractApiProvider
                 $providerMetadataArgs[] = 'Text and image generation with GPT and Dall-E.';
             }
         }
+        // Provider logoPath support was added in 1.3.0.
+        if (version_compare(AiClient::VERSION, '1.3.0', '>=')) {
+            $providerMetadataArgs[] = dirname(__DIR__, 2) . '/assets/images/openai.svg';
+        }
         return new ProviderMetadata(...$providerMetadataArgs);
     }
 
