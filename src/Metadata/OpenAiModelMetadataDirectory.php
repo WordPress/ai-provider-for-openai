@@ -47,6 +47,46 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
     /**
      * {@inheritDoc}
      *
+     * Avoids a live `GET /models` round trip when the caller already knows the explicit OpenAI model ID and the ID
+     * matches a known OpenAI text generation model family (`gpt-*`, `chatgpt-*`, or reasoning models like `o3`).
+     * Image (`gpt-image-*`, `dall-e-*`) and unrelated namespaces still fall back to listing models so they receive
+     * full capability/option metadata from {@see self::parseResponseToModelMetadataList()}.
+     *
+     * @since n.e.x.t
+     */
+    protected function createModelMetadataForExplicitModelId(string $modelId): ?ModelMetadata
+    {
+        if (!$this->isExplicitTextGenerationModelId($modelId)) {
+            return null;
+        }
+
+        return new ModelMetadata($modelId, $modelId, [CapabilityEnum::textGeneration()], []);
+    }
+
+    /**
+     * Checks whether a model ID is safe to treat as a text generation model without listing models.
+     *
+     * @since n.e.x.t
+     *
+     * @param string $modelId The explicit model ID.
+     * @return bool True if the model ID matches common OpenAI text generation model families.
+     */
+    protected function isExplicitTextGenerationModelId(string $modelId): bool
+    {
+        if (str_starts_with($modelId, 'gpt-image-') || str_starts_with($modelId, 'dall-e-')) {
+            return false;
+        }
+
+        if (str_starts_with($modelId, 'gpt-') || str_starts_with($modelId, 'chatgpt-')) {
+            return true;
+        }
+
+        return preg_match('/^o\d(?:-|$)/', $modelId) === 1;
+    }
+
+    /**
+     * {@inheritDoc}
+     *
      * @since 1.0.0
      */
     protected function parseResponseToModelMetadataList(Response $response): array
