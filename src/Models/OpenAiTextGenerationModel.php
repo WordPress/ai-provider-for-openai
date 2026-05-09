@@ -409,7 +409,9 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
                     'type' => 'function',
                     'name' => $functionDeclaration->getName(),
                     'description' => $functionDeclaration->getDescription(),
-                    'parameters' => $functionDeclaration->getParameters(),
+                    'parameters' => $this->prepareFunctionParameters(
+                        $functionDeclaration->getParameters()
+                    ),
                 ];
             }
         }
@@ -422,6 +424,60 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
         }
 
         return $tools;
+    }
+
+    /**
+     * Prepares a function parameters schema for the OpenAI API request.
+     *
+     * PHP encodes empty arrays as JSON arrays, but JSON Schema "properties" must
+     * be an object map even when empty.
+     *
+     * @since 1.0.0
+     *
+     * @param array<string, mixed>|null $parameters The function parameters schema.
+     * @return array<string, mixed> The prepared function parameters schema.
+     */
+    protected function prepareFunctionParameters(?array $parameters): array
+    {
+        if ($parameters === null) {
+            return [
+                'type' => 'object',
+                'properties' => (object) [],
+            ];
+        }
+
+        /** @var array<string, mixed> $prepared */
+        $prepared = $this->prepareJsonSchemaObjectMaps($parameters);
+        return $prepared;
+    }
+
+    /**
+     * Recursively prepares JSON Schema object maps for JSON serialization.
+     *
+     * @since 1.0.0
+     *
+     * @param mixed $value The value to prepare.
+     * @param string|null $key The current JSON Schema key, if available.
+     * @return mixed The prepared value.
+     */
+    protected function prepareJsonSchemaObjectMaps($value, ?string $key = null)
+    {
+        if (!is_array($value)) {
+            return $value;
+        }
+
+        if ($key === 'properties' && $value === []) {
+            return (object) [];
+        }
+
+        foreach ($value as $childKey => $childValue) {
+            $value[$childKey] = $this->prepareJsonSchemaObjectMaps(
+                $childValue,
+                is_string($childKey) ? $childKey : null
+            );
+        }
+
+        return $value;
     }
 
     /**
