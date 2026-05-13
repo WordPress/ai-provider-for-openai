@@ -3,7 +3,7 @@ Contributors: wordpressdotorg
 Tags: ai, openai, gpt, artificial-intelligence, connector
 Requires at least: 6.9
 Tested up to: 7.0
-Stable tag: 1.0.2
+Stable tag: 1.0.3
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -48,6 +48,11 @@ Visit the [OpenAI Platform](https://platform.openai.com/) to create an account a
 No, this plugin requires the PHP AI Client plugin to be installed and activated. It provides the OpenAI-specific implementation that the PHP AI Client uses.
 
 == Changelog ==
+
+= 1.0.3 =
+
+* Add a provider logo to the metadata if the client version > 1.3.0 ([#19](https://github.com/WordPress/ai-provider-for-openai/pull/19)).
+* Fix mapping of models that support multimodal inputs ([#22](https://github.com/WordPress/ai-provider-for-openai/pull/22)).
 
 = 1.0.2 =
 

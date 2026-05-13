@@ -259,7 +259,7 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
     /**
      * Checks whether an OpenAI text generation model supports multimodal input.
      *
-     * @since n.e.x.t
+     * @since 1.0.3
      *
      * @param string $modelId The model ID.
      * @return bool True if the model supports multimodal text input, false otherwise.
