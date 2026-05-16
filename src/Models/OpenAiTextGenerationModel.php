@@ -8,6 +8,7 @@ use WordPress\AiClient\Common\Exception\InvalidArgumentException;
 use WordPress\AiClient\Common\Exception\RuntimeException;
 use WordPress\AiClient\Messages\DTO\Message;
 use WordPress\AiClient\Messages\DTO\MessagePart;
+use WordPress\AiClient\Messages\Enums\MessagePartChannelEnum;
 use WordPress\AiClient\Messages\Enums\MessageRoleEnum;
 use WordPress\AiClient\Providers\ApiBasedImplementation\AbstractApiBasedModel;
 use WordPress\AiClient\Providers\Http\DTO\Request;
@@ -184,12 +185,49 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
 
         $input = [];
         foreach ($messages as $message) {
+            foreach ($this->getReasoningInputItems($message) as $reasoningItem) {
+                $input[] = $reasoningItem;
+            }
             $inputItem = $this->getMessageInputItem($message);
             if ($inputItem !== null) {
                 $input[] = $inputItem;
             }
         }
         return $input;
+    }
+
+    /**
+     * Extracts top-level reasoning items from a message's thought-channel parts.
+     *
+     * @since n.e.x.t
+     *
+     * @param Message $message The message to inspect.
+     * @return list<array<string, mixed>> Reasoning items to send as top-level input.
+     */
+    protected function getReasoningInputItems(Message $message): array
+    {
+        if (!method_exists(MessagePart::class, 'getThoughtSignature')) {
+            return [];
+        }
+
+        $items = [];
+        foreach ($message->getParts() as $part) {
+            $channel = method_exists($part, 'getChannel') ? $part->getChannel() : null;
+            if ($channel === null || !$channel->isThought()) {
+                continue;
+            }
+            /** @phpstan-ignore-next-line method.notFound (gated by method_exists check above) */
+            $signature = $part->getThoughtSignature();
+            if (!is_string($signature) || $signature === '') {
+                continue;
+            }
+            $items[] = [
+                'type' => 'reasoning',
+                'encrypted_content' => $signature,
+                'summary' => [],
+            ];
+        }
+        return $items;
     }
 
     /**
@@ -251,6 +289,10 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
         $role = $message->getRole();
         $content = [];
         foreach ($parts as $part) {
+            $channel = method_exists($part, 'getChannel') ? $part->getChannel() : null;
+            if ($channel !== null && $channel->isThought()) {
+                continue;
+            }
             $partData = $this->getMessagePartData($part, $role);
 
             // Function calls and responses are top-level items, not wrapped in a message.
@@ -449,6 +491,7 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
         }
 
         $candidates = [];
+        $pendingReasoningParts = [];
         foreach ($responseData['output'] as $index => $outputItem) {
             if (!is_array($outputItem) || array_is_list($outputItem)) {
                 throw ResponseException::fromInvalidData(
@@ -458,9 +501,23 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
                 );
             }
 
-            $candidate = $this->parseOutputItemToCandidate($outputItem, $index, $responseData['status'] ?? 'completed');
+            if (($outputItem['type'] ?? '') === 'reasoning') {
+                $reasoningPart = $this->parseReasoningOutputToPart($outputItem);
+                if ($reasoningPart !== null) {
+                    $pendingReasoningParts[] = $reasoningPart;
+                }
+                continue;
+            }
+
+            $candidate = $this->parseOutputItemToCandidate(
+                $outputItem,
+                $index,
+                $responseData['status'] ?? 'completed',
+                $pendingReasoningParts
+            );
             if ($candidate !== null) {
                 $candidates[] = $candidate;
+                $pendingReasoningParts = [];
             }
         }
 
@@ -468,11 +525,7 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
 
         if (isset($responseData['usage']) && is_array($responseData['usage'])) {
             $usage = $responseData['usage'];
-            $tokenUsage = new TokenUsage(
-                $usage['input_tokens'] ?? 0,
-                $usage['output_tokens'] ?? 0,
-                $usage['total_tokens'] ?? (($usage['input_tokens'] ?? 0) + ($usage['output_tokens'] ?? 0))
-            );
+            $tokenUsage = $this->buildTokenUsage($usage);
         } else {
             $tokenUsage = new TokenUsage(0, 0, 0);
         }
@@ -499,24 +552,89 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
      * @param OutputItemData $outputItem The output item data from the API response.
      * @param int $index The index of the output item in the output array.
      * @param string $responseStatus The overall response status.
+     * @param list<MessagePart> $reasoningParts Buffered thought-channel parts to attach to this candidate.
      * @return Candidate|null The parsed candidate, or null if the output item should be skipped.
      */
-    protected function parseOutputItemToCandidate(array $outputItem, int $index, string $responseStatus): ?Candidate
-    {
+    protected function parseOutputItemToCandidate(
+        array $outputItem,
+        int $index,
+        string $responseStatus,
+        array $reasoningParts = []
+    ): ?Candidate {
         $type = $outputItem['type'] ?? '';
 
         // Handle message output type.
         if ($type === 'message') {
-            return $this->parseMessageOutputToCandidate($outputItem, $index, $responseStatus);
+            return $this->parseMessageOutputToCandidate($outputItem, $index, $responseStatus, $reasoningParts);
         }
 
         // Handle function_call output type (top-level function call).
         if ($type === 'function_call') {
-            return $this->parseFunctionCallOutputToCandidate($outputItem, $index);
+            return $this->parseFunctionCallOutputToCandidate($outputItem, $index, $reasoningParts);
         }
 
         // Skip other output types for now (e.g., image_generation_call is handled in image model).
         return null;
+    }
+
+    /**
+     * Parses a reasoning output item into a thought-channel MessagePart.
+     *
+     * @since n.e.x.t
+     *
+     * @param array<string, mixed> $outputItem The reasoning output item from the API response.
+     * @return MessagePart|null The reasoning part, or null if the current SDK lacks thought support.
+     */
+    protected function parseReasoningOutputToPart(array $outputItem): ?MessagePart
+    {
+        if (!method_exists(MessagePart::class, 'getThoughtSignature')) {
+            return null;
+        }
+
+        $encrypted = $outputItem['encrypted_content'] ?? null;
+        if (!is_string($encrypted) || $encrypted === '') {
+            return null;
+        }
+
+        $summary = '';
+        if (isset($outputItem['summary']) && is_array($outputItem['summary'])) {
+            foreach ($outputItem['summary'] as $summaryItem) {
+                if (is_array($summaryItem) && isset($summaryItem['text']) && is_string($summaryItem['text'])) {
+                    $summary .= $summaryItem['text'];
+                }
+            }
+        }
+
+        /** @phpstan-ignore-next-line arguments.count (gated by method_exists check above) */
+        return new MessagePart($summary, MessagePartChannelEnum::thought(), $encrypted);
+    }
+
+    /**
+     * Builds a TokenUsage DTO from the API usage block, including thought tokens when supported.
+     *
+     * @since n.e.x.t
+     *
+     * @param array<string, mixed> $usage The usage block from the API response.
+     * @return TokenUsage The token usage DTO.
+     */
+    protected function buildTokenUsage(array $usage): TokenUsage
+    {
+        $inputTokens = is_int($usage['input_tokens'] ?? null) ? $usage['input_tokens'] : 0;
+        $outputTokens = is_int($usage['output_tokens'] ?? null) ? $usage['output_tokens'] : 0;
+        $totalTokens = is_int($usage['total_tokens'] ?? null) ? $usage['total_tokens'] : $inputTokens + $outputTokens;
+
+        $thoughtTokens = null;
+        $details = $usage['output_tokens_details'] ?? null;
+        if (is_array($details) && isset($details['reasoning_tokens']) && is_int($details['reasoning_tokens'])) {
+            $thoughtTokens = $details['reasoning_tokens'];
+        }
+
+        $constructor = new \ReflectionMethod(TokenUsage::class, '__construct');
+        if ($thoughtTokens !== null && $constructor->getNumberOfParameters() >= 4) {
+            /** @phpstan-ignore-next-line arguments.count (gated by reflection check above) */
+            return new TokenUsage($inputTokens, $outputTokens, $totalTokens, $thoughtTokens);
+        }
+        return new TokenUsage($inputTokens, $outputTokens, $totalTokens);
     }
 
     /**
@@ -527,18 +645,20 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
      * @param OutputItemData $outputItem The output item data.
      * @param int $index The index of the output item.
      * @param string $responseStatus The overall response status.
+     * @param list<MessagePart> $reasoningParts Buffered thought-channel parts to prepend to the candidate message.
      * @return Candidate The parsed candidate.
      */
     protected function parseMessageOutputToCandidate(
         array $outputItem,
         int $index,
-        string $responseStatus
+        string $responseStatus,
+        array $reasoningParts = []
     ): Candidate {
         $role = isset($outputItem['role']) && $outputItem['role'] === 'user'
             ? MessageRoleEnum::user()
             : MessageRoleEnum::model();
 
-        $parts = [];
+        $parts = $reasoningParts;
         $hasFunctionCalls = false;
 
         if (isset($outputItem['content']) && is_array($outputItem['content'])) {
@@ -574,10 +694,14 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
      *
      * @param OutputItemData $outputItem The output item data.
      * @param int $index The index of the output item.
+     * @param list<MessagePart> $reasoningParts Buffered thought-channel parts to prepend to the candidate message.
      * @return Candidate The parsed candidate.
      */
-    protected function parseFunctionCallOutputToCandidate(array $outputItem, int $index): Candidate
-    {
+    protected function parseFunctionCallOutputToCandidate(
+        array $outputItem,
+        int $index,
+        array $reasoningParts = []
+    ): Candidate {
         if (!isset($outputItem['call_id']) || !is_string($outputItem['call_id'])) {
             throw ResponseException::fromMissingData(
                 $this->providerMetadata()->getName(),
@@ -612,7 +736,9 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
         );
 
         $part = new MessagePart($functionCall);
-        $message = new Message(MessageRoleEnum::model(), [$part]);
+        $parts = $reasoningParts;
+        $parts[] = $part;
+        $message = new Message(MessageRoleEnum::model(), $parts);
 
         return new Candidate($message, FinishReasonEnum::toolCalls());
     }
