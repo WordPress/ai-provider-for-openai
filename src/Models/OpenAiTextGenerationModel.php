@@ -199,6 +199,10 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
     /**
      * Extracts top-level reasoning items from a message's thought-channel parts.
      *
+     * The signature payload was packed as a JSON blob on inbound; here it is
+     * decoded to restore the original {id, encrypted_content, summary} shape
+     * required by the OpenAI Responses API.
+     *
      * @since n.e.x.t
      *
      * @param Message $message The message to inspect.
@@ -221,11 +225,26 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
             if (!is_string($signature) || $signature === '') {
                 continue;
             }
-            $items[] = [
-                'type' => 'reasoning',
-                'encrypted_content' => $signature,
-                'summary' => [],
-            ];
+
+            $item = ['type' => 'reasoning'];
+            $decoded = json_decode($signature, true);
+            if (is_array($decoded)) {
+                if (isset($decoded['id']) && is_string($decoded['id'])) {
+                    $item['id'] = $decoded['id'];
+                }
+                if (isset($decoded['encrypted_content']) && is_string($decoded['encrypted_content'])) {
+                    $item['encrypted_content'] = $decoded['encrypted_content'];
+                }
+                if (isset($decoded['summary']) && is_array($decoded['summary'])) {
+                    $item['summary'] = $decoded['summary'];
+                }
+            } else {
+                $item['encrypted_content'] = $signature;
+            }
+            if (!isset($item['summary'])) {
+                $item['summary'] = [];
+            }
+            $items[] = $item;
         }
         return $items;
     }
@@ -580,6 +599,11 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
     /**
      * Parses a reasoning output item into a thought-channel MessagePart.
      *
+     * The reasoning item's id, encrypted_content, and summary are packed into a
+     * JSON blob stored on the part's thoughtSignature so all three fields can be
+     * round-tripped on subsequent requests. The summary text is also surfaced as
+     * the part's text content for human-readable consumption.
+     *
      * @since n.e.x.t
      *
      * @param array<string, mixed> $outputItem The reasoning output item from the API response.
@@ -591,22 +615,39 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
             return null;
         }
 
-        $encrypted = $outputItem['encrypted_content'] ?? null;
-        if (!is_string($encrypted) || $encrypted === '') {
+        $summary = isset($outputItem['summary']) && is_array($outputItem['summary'])
+            ? $outputItem['summary']
+            : [];
+
+        $signaturePayload = [];
+        if (isset($outputItem['id']) && is_string($outputItem['id'])) {
+            $signaturePayload['id'] = $outputItem['id'];
+        }
+        if (isset($outputItem['encrypted_content']) && is_string($outputItem['encrypted_content'])) {
+            $signaturePayload['encrypted_content'] = $outputItem['encrypted_content'];
+        }
+        if (!empty($summary)) {
+            $signaturePayload['summary'] = $summary;
+        }
+
+        if (empty($signaturePayload)) {
             return null;
         }
 
-        $summary = '';
-        if (isset($outputItem['summary']) && is_array($outputItem['summary'])) {
-            foreach ($outputItem['summary'] as $summaryItem) {
-                if (is_array($summaryItem) && isset($summaryItem['text']) && is_string($summaryItem['text'])) {
-                    $summary .= $summaryItem['text'];
-                }
+        $signature = json_encode($signaturePayload);
+        if ($signature === false) {
+            return null;
+        }
+
+        $summaryText = '';
+        foreach ($summary as $summaryItem) {
+            if (is_array($summaryItem) && isset($summaryItem['text']) && is_string($summaryItem['text'])) {
+                $summaryText .= $summaryItem['text'];
             }
         }
 
         /** @phpstan-ignore-next-line arguments.count (gated by method_exists check above) */
-        return new MessagePart($summary, MessagePartChannelEnum::thought(), $encrypted);
+        return new MessagePart($summaryText, MessagePartChannelEnum::thought(), $signature);
     }
 
     /**
