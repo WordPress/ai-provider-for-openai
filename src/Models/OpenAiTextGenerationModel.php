@@ -256,6 +256,11 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
      * sent as top-level input items rather than nested in message content. As such,
      * they must be the only part in a message.
      *
+     * Thought-channel parts are excluded from this check because they are emitted as
+     * separate top-level `reasoning` input items by {@see self::getReasoningInputItems()}
+     * and skipped by {@see self::getMessageInputItem()}; they never appear in the wire
+     * Message that the API constraint applies to.
+     *
      * @since 1.0.0
      *
      * @param list<Message> $messages The messages to validate.
@@ -265,13 +270,20 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
     protected function validateMessages(array $messages): void
     {
         foreach ($messages as $message) {
-            $parts = $message->getParts();
+            $contentParts = [];
+            foreach ($message->getParts() as $part) {
+                $channel = method_exists($part, 'getChannel') ? $part->getChannel() : null;
+                if ($channel !== null && $channel->isThought()) {
+                    continue;
+                }
+                $contentParts[] = $part;
+            }
 
-            if (count($parts) <= 1) {
+            if (count($contentParts) <= 1) {
                 continue;
             }
 
-            foreach ($parts as $part) {
+            foreach ($contentParts as $part) {
                 $type = $part->getType();
 
                 if ($type->isFunctionCall()) {
