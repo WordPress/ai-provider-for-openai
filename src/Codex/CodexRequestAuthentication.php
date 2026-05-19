@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace WordPress\OpenAiAiProvider\Codex;
 
-use WordPress\AiClient\Providers\Http\DTO\ApiKeyRequestAuthentication;
+use WordPress\AiClient\Providers\Http\Contracts\RequestAuthenticationInterface;
 use WordPress\AiClient\Providers\Http\DTO\Request;
 
 /**
@@ -14,7 +14,7 @@ use WordPress\AiClient\Providers\Http\DTO\Request;
  *
  * @since n.e.x.t
  */
-class CodexRequestAuthentication extends ApiKeyRequestAuthentication
+class CodexRequestAuthentication implements RequestAuthenticationInterface
 {
     /**
      * @var CodexTokenStore Token store.
@@ -36,7 +36,6 @@ class CodexRequestAuthentication extends ApiKeyRequestAuthentication
      */
     public function __construct(CodexTokenStore $tokenStore, CodexOAuthClient $oauthClient)
     {
-        parent::__construct('codex-oauth');
         $this->tokenStore = $tokenStore;
         $this->oauthClient = $oauthClient;
     }
@@ -60,5 +59,18 @@ class CodexRequestAuthentication extends ApiKeyRequestAuthentication
         }
 
         return $request;
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * @since n.e.x.t
+     */
+    public static function getJsonSchema(): array
+    {
+        return [
+            'type' => 'object',
+            'properties' => [],
+        ];
     }
 }

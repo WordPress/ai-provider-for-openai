@@ -21,10 +21,7 @@ declare(strict_types=1);
 namespace WordPress\OpenAiAiProvider;
 
 use WordPress\AiClient\AiClient;
-use WordPress\OpenAiAiProvider\Codex\CodexOAuthClient;
 use WordPress\OpenAiAiProvider\Codex\CodexProvider;
-use WordPress\OpenAiAiProvider\Codex\CodexRequestAuthentication;
-use WordPress\OpenAiAiProvider\Codex\CodexTokenStore;
 use WordPress\OpenAiAiProvider\Provider\OpenAiProvider;
 
 if (!defined('ABSPATH')) {
@@ -53,12 +50,7 @@ function register_provider(): void
     }
 
     if (!$registry->hasProvider(CodexProvider::class)) {
-        $tokenStore = new CodexTokenStore();
         $registry->registerProvider(CodexProvider::class);
-        $registry->setProviderRequestAuthentication(
-            CodexProvider::class,
-            new CodexRequestAuthentication($tokenStore, new CodexOAuthClient($tokenStore))
-        );
     }
 }
 
