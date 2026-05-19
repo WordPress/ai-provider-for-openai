@@ -9,10 +9,7 @@ use WordPress\AiClient\Providers\Http\DTO\Request;
 use WordPress\AiClient\Providers\Http\DTO\RequestOptions;
 use WordPress\AiClient\Providers\Http\DTO\Response;
 use WordPress\AiClient\Providers\ProviderRegistry;
-use WordPress\OpenAiAiProvider\Codex\CodexOAuthClient;
 use WordPress\OpenAiAiProvider\Codex\CodexProvider;
-use WordPress\OpenAiAiProvider\Codex\CodexRequestAuthentication;
-use WordPress\OpenAiAiProvider\Codex\CodexTokenStore;
 
 require_once dirname(__DIR__) . '/vendor/autoload.php';
 require_once dirname(__DIR__) . '/src/autoload.php';
@@ -52,12 +49,7 @@ $registry->setHttpTransporter(
     }
 );
 
-$tokenStore = new CodexTokenStore();
 $registry->registerProvider(CodexProvider::class);
-$registry->setProviderRequestAuthentication(
-    CodexProvider::class,
-    new CodexRequestAuthentication($tokenStore, new CodexOAuthClient($tokenStore))
-);
 
 $model = $registry->getProviderModel('codex', 'gpt-5.5');
 $result = $model->generateTextResult([new UserMessage([new MessagePart('hello')])]);
