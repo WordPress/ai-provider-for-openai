@@ -199,28 +199,21 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
     /**
      * Extracts top-level reasoning items from a message's thought-channel parts.
      *
-     * The signature payload was packed as a JSON blob on inbound; here it is
-     * decoded to restore the original {id, encrypted_content, summary} shape
-     * required by the OpenAI Responses API.
+     * Decodes the JSON signature blob back into the original
+     * {id, encrypted_content, summary} shape required by the Responses API.
      *
-     * @since n.e.x.t
+     * @since 1.1.0
      *
      * @param Message $message The message to inspect.
      * @return list<array<string, mixed>> Reasoning items to send as top-level input.
      */
     protected function getReasoningInputItems(Message $message): array
     {
-        if (!method_exists(MessagePart::class, 'getThoughtSignature')) {
-            return [];
-        }
-
         $items = [];
         foreach ($message->getParts() as $part) {
-            $channel = method_exists($part, 'getChannel') ? $part->getChannel() : null;
-            if ($channel === null || !$channel->isThought()) {
+            if (!$part->getChannel()->isThought()) {
                 continue;
             }
-            /** @phpstan-ignore-next-line method.notFound (gated by method_exists check above) */
             $signature = $part->getThoughtSignature();
             if (!is_string($signature) || $signature === '') {
                 continue;
@@ -256,10 +249,8 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
      * sent as top-level input items rather than nested in message content. As such,
      * they must be the only part in a message.
      *
-     * Thought-channel parts are excluded from this check because they are emitted as
-     * separate top-level `reasoning` input items by {@see self::getReasoningInputItems()}
-     * and skipped by {@see self::getMessageInputItem()}; they never appear in the wire
-     * Message that the API constraint applies to.
+     * Thought-channel parts are sent as separate top-level `reasoning` items
+     * (see {@see self::getReasoningInputItems()}) and skipped here.
      *
      * @since 1.0.0
      *
@@ -272,8 +263,7 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
         foreach ($messages as $message) {
             $contentParts = [];
             foreach ($message->getParts() as $part) {
-                $channel = method_exists($part, 'getChannel') ? $part->getChannel() : null;
-                if ($channel !== null && $channel->isThought()) {
+                if ($part->getChannel()->isThought()) {
                     continue;
                 }
                 $contentParts[] = $part;
@@ -320,8 +310,7 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
         $role = $message->getRole();
         $content = [];
         foreach ($parts as $part) {
-            $channel = method_exists($part, 'getChannel') ? $part->getChannel() : null;
-            if ($channel !== null && $channel->isThought()) {
+            if ($part->getChannel()->isThought()) {
                 continue;
             }
             $partData = $this->getMessagePartData($part, $role);
@@ -611,22 +600,17 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
     /**
      * Parses a reasoning output item into a thought-channel MessagePart.
      *
-     * The reasoning item's id, encrypted_content, and summary are packed into a
-     * JSON blob stored on the part's thoughtSignature so all three fields can be
-     * round-tripped on subsequent requests. The summary text is also surfaced as
-     * the part's text content for human-readable consumption.
+     * Packs id/encrypted_content/summary into the part's thoughtSignature as
+     * JSON for round-trip; exposes the joined summary text as the part's
+     * content.
      *
-     * @since n.e.x.t
+     * @since 1.1.0
      *
      * @param array<string, mixed> $outputItem The reasoning output item from the API response.
-     * @return MessagePart|null The reasoning part, or null if the current SDK lacks thought support.
+     * @return MessagePart|null The reasoning part, or null if there is nothing to round-trip.
      */
     protected function parseReasoningOutputToPart(array $outputItem): ?MessagePart
     {
-        if (!method_exists(MessagePart::class, 'getThoughtSignature')) {
-            return null;
-        }
-
         $summary = isset($outputItem['summary']) && is_array($outputItem['summary'])
             ? $outputItem['summary']
             : [];
@@ -658,14 +642,13 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
             }
         }
 
-        /** @phpstan-ignore-next-line arguments.count (gated by method_exists check above) */
         return new MessagePart($summaryText, MessagePartChannelEnum::thought(), $signature);
     }
 
     /**
-     * Builds a TokenUsage DTO from the API usage block, including thought tokens when supported.
+     * Builds a TokenUsage DTO from the API usage block.
      *
-     * @since n.e.x.t
+     * @since 1.1.0
      *
      * @param array<string, mixed> $usage The usage block from the API response.
      * @return TokenUsage The token usage DTO.
@@ -682,12 +665,7 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
             $thoughtTokens = $details['reasoning_tokens'];
         }
 
-        $constructor = new \ReflectionMethod(TokenUsage::class, '__construct');
-        if ($thoughtTokens !== null && $constructor->getNumberOfParameters() >= 4) {
-            /** @phpstan-ignore-next-line arguments.count (gated by reflection check above) */
-            return new TokenUsage($inputTokens, $outputTokens, $totalTokens, $thoughtTokens);
-        }
-        return new TokenUsage($inputTokens, $outputTokens, $totalTokens);
+        return new TokenUsage($inputTokens, $outputTokens, $totalTokens, $thoughtTokens);
     }
 
     /**
