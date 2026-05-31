@@ -86,20 +86,22 @@ class CodexOAuthClient
      */
     private function refreshAccessToken(string $refreshToken): array
     {
-        $body = http_build_query(
-            [
-                'grant_type' => 'refresh_token',
-                'client_id' => self::CLIENT_ID,
-                'refresh_token' => $refreshToken,
-            ]
-        );
+        $body = [
+            'grant_type' => 'refresh_token',
+            'client_id' => self::CLIENT_ID,
+            'refresh_token' => $refreshToken,
+        ];
+
+        if (function_exists('wp_remote_post')) {
+            return $this->refreshAccessTokenWithWordPress($body);
+        }
 
         $context = stream_context_create(
             [
                     'http' => [
                         'method' => 'POST',
                         'header' => "Content-Type: application/x-www-form-urlencoded\r\n",
-                        'content' => $body,
+                        'content' => http_build_query($body),
                         'ignore_errors' => true,
                         'timeout' => 20,
                     ],
@@ -110,6 +112,60 @@ class CodexOAuthClient
             throw new RuntimeException('Codex OAuth refresh failed.');
         }
 
+        $data = json_decode($responseBody, true);
+        if (!is_array($data)) {
+            throw new RuntimeException('Codex OAuth refresh returned an invalid response.');
+        }
+
+        /** @var array<string, mixed> $data */
+        return $data;
+    }
+
+    /**
+     * Refreshes an access token using the WordPress HTTP API.
+     *
+     * @since n.e.x.t
+     *
+     * @param array<string, string> $body Request body.
+     * @return array<string, mixed> Response data.
+     * @throws RuntimeException If the request fails.
+     */
+    private function refreshAccessTokenWithWordPress(array $body): array
+    {
+        $wpRemotePost = 'wp_remote_post';
+        // @phpstan-ignore-next-line WordPress HTTP API is available at runtime when function_exists() passes.
+        $response = $wpRemotePost(self::TOKEN_URL, [
+            'body' => $body,
+            'headers' => [
+                'Content-Type' => 'application/x-www-form-urlencoded',
+            ],
+            'timeout' => 20,
+        ]);
+
+        $isWpError = 'is_wp_error';
+        // @phpstan-ignore-next-line WordPress error helper is available at runtime when function_exists() passes.
+        if (function_exists('is_wp_error') && $isWpError($response)) {
+            throw new RuntimeException('Codex OAuth refresh failed.');
+        }
+
+        $wpRemoteRetrieveResponseCode = 'wp_remote_retrieve_response_code';
+        $rawStatusCode = 0;
+        if (function_exists('wp_remote_retrieve_response_code')) {
+            // @phpstan-ignore-next-line WordPress HTTP helper is available at runtime when function_exists() passes.
+            $rawStatusCode = $wpRemoteRetrieveResponseCode($response);
+        }
+        $statusCode = is_numeric($rawStatusCode) ? (int) $rawStatusCode : 0;
+        if ($statusCode < 200 || $statusCode >= 300) {
+            throw new RuntimeException('Codex OAuth refresh failed.');
+        }
+
+        $wpRemoteRetrieveBody = 'wp_remote_retrieve_body';
+        $rawResponseBody = '';
+        if (function_exists('wp_remote_retrieve_body')) {
+            // @phpstan-ignore-next-line WordPress HTTP helper is available at runtime when function_exists() passes.
+            $rawResponseBody = $wpRemoteRetrieveBody($response);
+        }
+        $responseBody = is_scalar($rawResponseBody) ? (string) $rawResponseBody : '';
         $data = json_decode($responseBody, true);
         if (!is_array($data)) {
             throw new RuntimeException('Codex OAuth refresh returned an invalid response.');

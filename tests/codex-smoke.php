@@ -14,9 +14,77 @@ use WordPress\OpenAiAiProvider\Codex\CodexProvider;
 require_once dirname(__DIR__) . '/vendor/autoload.php';
 require_once dirname(__DIR__) . '/src/autoload.php';
 
-define('AI_PROVIDER_OPENAI_CODEX_ACCESS_TOKEN', 'test-access-token');
-define('AI_PROVIDER_OPENAI_CODEX_EXPIRES_AT', time() + 3600);
-define('AI_PROVIDER_OPENAI_CODEX_ACCOUNT_ID', 'test-account-id');
+$codexSmokeTokens = [
+    'access_token' => 'expired-access-token',
+    'refresh_token' => 'test-refresh-token',
+    'expires_at' => time() - 3600,
+    'account_id' => 'test-account-id',
+    'fedramp' => true,
+];
+$codexSmokeRefreshCalls = 0;
+$codexSmokeUpdatedTokens = null;
+$codexSmokeAutoload = null;
+
+function get_option(string $option, $default = false)
+{
+    global $codexSmokeTokens;
+
+    if ($option !== 'ai_provider_openai_codex_oauth_tokens') {
+        return $default;
+    }
+
+    return $codexSmokeTokens;
+}
+
+function update_option(string $option, $value, $autoload = null): bool
+{
+    global $codexSmokeAutoload, $codexSmokeTokens, $codexSmokeUpdatedTokens;
+
+    assert($option === 'ai_provider_openai_codex_oauth_tokens');
+    $codexSmokeTokens = $value;
+    $codexSmokeUpdatedTokens = $value;
+    $codexSmokeAutoload = $autoload;
+
+    return true;
+}
+
+function wp_remote_post(string $url, array $args = [])
+{
+    global $codexSmokeRefreshCalls;
+
+    ++$codexSmokeRefreshCalls;
+
+    assert($url === 'https://auth.openai.com/oauth/token');
+    assert(($args['body']['grant_type'] ?? null) === 'refresh_token');
+    assert(($args['body']['client_id'] ?? null) === 'app_EMoamEEZ73f0CkXaXp7hrann');
+    assert(($args['body']['refresh_token'] ?? null) === 'test-refresh-token');
+
+    return [
+        'response' => ['code' => 200],
+        'body' => json_encode(
+            [
+                'access_token' => 'fresh-access-token',
+                'refresh_token' => 'fresh-refresh-token',
+                'expires_in' => 3600,
+            ]
+        ),
+    ];
+}
+
+function wp_remote_retrieve_response_code($response): int
+{
+    return (int) ($response['response']['code'] ?? 0);
+}
+
+function wp_remote_retrieve_body($response): string
+{
+    return (string) ($response['body'] ?? '');
+}
+
+function is_wp_error($response): bool
+{
+    return false;
+}
 
 $registry = new ProviderRegistry();
 $registry->setHttpTransporter(
@@ -24,8 +92,9 @@ $registry->setHttpTransporter(
         public function send(Request $request, ?RequestOptions $options = null): Response
         {
             assert($request->getUri() === 'https://chatgpt.com/backend-api/codex/responses');
-            assert($request->getHeaderAsString('Authorization') === 'Bearer test-access-token');
+            assert($request->getHeaderAsString('Authorization') === 'Bearer fresh-access-token');
             assert($request->getHeaderAsString('ChatGPT-Account-ID') === 'test-account-id');
+            assert($request->getHeaderAsString('X-OpenAI-Fedramp') === 'true');
 
             $data = $request->getData();
             assert(is_array($data));
@@ -37,7 +106,7 @@ $registry->setHttpTransporter(
             $body = implode(
                 "\n\n",
                 [
-                    'data: {"delta":"codex "}',
+                    'data: {"type":"response.output_text.delta","delta":"codex "}',
                     'data: {"delta":"smoke"}',
                     'data: {"type":"response.completed","response":{"id":"resp_test","usage":{"input_tokens":1,"output_tokens":2,"total_tokens":3}}}',
                     'data: [DONE]',
@@ -51,9 +120,16 @@ $registry->setHttpTransporter(
 
 $registry->registerProvider(CodexProvider::class);
 
+assert($registry->isProviderConfigured('codex') === true);
+
 $model = $registry->getProviderModel('codex', 'gpt-5.5');
 $result = $model->generateTextResult([new UserMessage([new MessagePart('hello')])]);
 
 assert($result->toText() === 'codex smoke');
+assert($codexSmokeRefreshCalls === 1);
+assert(is_array($codexSmokeUpdatedTokens));
+assert(($codexSmokeUpdatedTokens['access_token'] ?? null) === 'fresh-access-token');
+assert(($codexSmokeUpdatedTokens['refresh_token'] ?? null) === 'fresh-refresh-token');
+assert($codexSmokeAutoload === false);
 
 echo "Codex smoke passed.\n";

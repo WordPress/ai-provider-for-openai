@@ -262,7 +262,13 @@ class CodexTextGenerationModel extends AbstractApiBasedModel implements TextGene
             return;
         }
 
-        if (isset($data['delta']) && is_string($data['delta'])) {
+        if (
+            ($data['type'] ?? '') === 'response.output_text.delta' &&
+            isset($data['delta']) &&
+            is_string($data['delta'])
+        ) {
+            $text .= $data['delta'];
+        } elseif (isset($data['delta']) && is_string($data['delta'])) {
             $text .= $data['delta'];
         }
 
