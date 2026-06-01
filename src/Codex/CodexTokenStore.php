@@ -41,7 +41,8 @@ class CodexTokenStore
 
         /** @var array<string, mixed> $tokenData */
         $tokenData = $tokens;
-        $tokens = $this->addConstantTokens($tokenData);
+        $tokens = $this->addEnvironmentTokens($tokenData);
+        $tokens = $this->addConstantTokens($tokens);
 
         if (function_exists('apply_filters')) {
             /**
@@ -139,6 +140,26 @@ class CodexTokenStore
     }
 
     /**
+     * Adds token data from environment variables when present.
+     *
+     * @since n.e.x.t
+     *
+     * @param array<string, mixed> $tokens Token data.
+     * @return array<string, mixed> Token data.
+     */
+    private function addEnvironmentTokens(array $tokens): array
+    {
+        foreach ($this->tokenSourceMap() as $name => $tokenKey) {
+            $value = getenv($name);
+            if ($value !== false) {
+                $tokens[$tokenKey] = $value;
+            }
+        }
+
+        return $tokens;
+    }
+
+    /**
      * Adds token data from constants when present.
      *
      * @since n.e.x.t
@@ -148,21 +169,31 @@ class CodexTokenStore
      */
     private function addConstantTokens(array $tokens): array
     {
-        $constantMap = [
-            'AI_PROVIDER_OPENAI_CODEX_ACCESS_TOKEN' => 'access_token',
-            'AI_PROVIDER_OPENAI_CODEX_REFRESH_TOKEN' => 'refresh_token',
-            'AI_PROVIDER_OPENAI_CODEX_EXPIRES_AT' => 'expires_at',
-            'AI_PROVIDER_OPENAI_CODEX_ACCOUNT_ID' => 'account_id',
-            'AI_PROVIDER_OPENAI_CODEX_FEDRAMP' => 'fedramp',
-        ];
-
-        foreach ($constantMap as $constantName => $tokenKey) {
+        foreach ($this->tokenSourceMap() as $constantName => $tokenKey) {
             if (defined($constantName)) {
                 $tokens[$tokenKey] = constant($constantName);
             }
         }
 
         return $tokens;
+    }
+
+    /**
+     * Maps environment/constant names to token keys.
+     *
+     * @since n.e.x.t
+     *
+     * @return array<string, string>
+     */
+    private function tokenSourceMap(): array
+    {
+        return [
+            'AI_PROVIDER_OPENAI_CODEX_ACCESS_TOKEN' => 'access_token',
+            'AI_PROVIDER_OPENAI_CODEX_REFRESH_TOKEN' => 'refresh_token',
+            'AI_PROVIDER_OPENAI_CODEX_EXPIRES_AT' => 'expires_at',
+            'AI_PROVIDER_OPENAI_CODEX_ACCOUNT_ID' => 'account_id',
+            'AI_PROVIDER_OPENAI_CODEX_FEDRAMP' => 'fedramp',
+        ];
     }
 
     /**

@@ -133,3 +133,20 @@ assert(($codexSmokeUpdatedTokens['refresh_token'] ?? null) === 'fresh-refresh-to
 assert($codexSmokeAutoload === false);
 
 echo "Codex smoke passed.\n";
+
+$codexSmokeTokens = [];
+putenv('AI_PROVIDER_OPENAI_CODEX_ACCESS_TOKEN=env-access-token');
+putenv('AI_PROVIDER_OPENAI_CODEX_REFRESH_TOKEN=env-refresh-token');
+putenv('AI_PROVIDER_OPENAI_CODEX_EXPIRES_AT=' . (time() + 3600));
+putenv('AI_PROVIDER_OPENAI_CODEX_ACCOUNT_ID=env-account-id');
+putenv('AI_PROVIDER_OPENAI_CODEX_FEDRAMP=true');
+
+$envTokenStore = new WordPress\OpenAiAiProvider\Codex\CodexTokenStore();
+$envTokens = $envTokenStore->getTokens();
+
+assert(($envTokens['access_token'] ?? null) === 'env-access-token');
+assert(($envTokens['refresh_token'] ?? null) === 'env-refresh-token');
+assert(($envTokens['account_id'] ?? null) === 'env-account-id');
+assert(($envTokens['fedramp'] ?? null) === true);
+
+echo "Codex env token smoke passed.\n";
