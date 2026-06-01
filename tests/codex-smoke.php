@@ -24,6 +24,7 @@ $codexSmokeTokens = [
 $codexSmokeRefreshCalls = 0;
 $codexSmokeUpdatedTokens = null;
 $codexSmokeAutoload = null;
+$codexSmokeRequestConnectTimeouts = [];
 
 function get_option(string $option, $default = false)
 {
@@ -91,10 +92,16 @@ $registry->setHttpTransporter(
     new class implements HttpTransporterInterface {
         public function send(Request $request, ?RequestOptions $options = null): Response
         {
+            global $codexSmokeRequestConnectTimeouts;
+
+            $requestOptions = $request->getOptions();
+
             assert($request->getUri() === 'https://chatgpt.com/backend-api/codex/responses');
-            assert($request->getHeaderAsString('Authorization') === 'Bearer fresh-access-token');
-            assert($request->getHeaderAsString('ChatGPT-Account-ID') === 'test-account-id');
+            assert(in_array($request->getHeaderAsString('Authorization'), ['Bearer fresh-access-token', 'Bearer env-access-token'], true));
+            assert(in_array($request->getHeaderAsString('ChatGPT-Account-ID'), ['test-account-id', 'env-account-id'], true));
             assert($request->getHeaderAsString('X-OpenAI-Fedramp') === 'true');
+            assert($requestOptions instanceof RequestOptions);
+            $codexSmokeRequestConnectTimeouts[] = $requestOptions->getConnectTimeout();
 
             $data = $request->getData();
             assert(is_array($data));
@@ -126,6 +133,7 @@ $model = $registry->getProviderModel('codex', 'gpt-5.5');
 $result = $model->generateTextResult([new UserMessage([new MessagePart('hello')])]);
 
 assert($result->toText() === 'codex smoke');
+assert($codexSmokeRequestConnectTimeouts[0] === 120.0);
 assert($codexSmokeRefreshCalls === 1);
 assert(is_array($codexSmokeUpdatedTokens));
 assert(($codexSmokeUpdatedTokens['access_token'] ?? null) === 'fresh-access-token');
@@ -150,3 +158,14 @@ assert(($envTokens['account_id'] ?? null) === 'env-account-id');
 assert(($envTokens['fedramp'] ?? null) === true);
 
 echo "Codex env token smoke passed.\n";
+
+$shortOptions = new RequestOptions();
+$shortOptions->setTimeout(60.0);
+$shortOptions->setConnectTimeout(15.0);
+$model->setRequestOptions($shortOptions);
+$result = $model->generateTextResult([new UserMessage([new MessagePart('hello again')])]);
+
+assert($result->toText() === 'codex smoke');
+assert($codexSmokeRequestConnectTimeouts[1] === 60.0);
+
+echo "Codex request timeout floor smoke passed.\n";

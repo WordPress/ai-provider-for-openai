@@ -11,6 +11,7 @@ use WordPress\AiClient\Messages\DTO\ModelMessage;
 use WordPress\AiClient\Messages\Enums\MessageRoleEnum;
 use WordPress\AiClient\Providers\ApiBasedImplementation\AbstractApiBasedModel;
 use WordPress\AiClient\Providers\Http\DTO\Request;
+use WordPress\AiClient\Providers\Http\DTO\RequestOptions;
 use WordPress\AiClient\Providers\Http\DTO\Response;
 use WordPress\AiClient\Providers\Http\Enums\HttpMethodEnum;
 use WordPress\AiClient\Providers\Http\Exception\ResponseException;
@@ -28,6 +29,8 @@ use WordPress\AiClient\Results\Enums\FinishReasonEnum;
  */
 class CodexTextGenerationModel extends AbstractApiBasedModel implements TextGenerationModelInterface
 {
+    private const CONNECT_TIMEOUT_FLOOR = 120.0;
+
     /**
      * {@inheritDoc}
      *
@@ -40,7 +43,7 @@ class CodexTextGenerationModel extends AbstractApiBasedModel implements TextGene
             CodexProvider::url('responses'),
             ['Content-Type' => 'application/json'],
             $this->prepareGenerateTextParams($prompt),
-            $this->getRequestOptions()
+            $this->getCodexRequestOptions()
         );
 
         $request = $this->getRequestAuthentication()->authenticateRequest($request);
@@ -48,6 +51,30 @@ class CodexTextGenerationModel extends AbstractApiBasedModel implements TextGene
         ResponseUtil::throwIfNotSuccessful($response);
 
         return $this->parseResponseToResult($response);
+    }
+
+    private function getCodexRequestOptions(): RequestOptions
+    {
+        $current = $this->getRequestOptions();
+        $options = new RequestOptions();
+
+        $timeout = $current?->getTimeout();
+        if ($timeout !== null) {
+            $options->setTimeout($timeout);
+        }
+
+        $connectTimeout = $current?->getConnectTimeout();
+        $connectTimeoutFloor = $timeout !== null
+            ? min(self::CONNECT_TIMEOUT_FLOOR, $timeout)
+            : self::CONNECT_TIMEOUT_FLOOR;
+        $options->setConnectTimeout(max($connectTimeout ?? 0.0, $connectTimeoutFloor));
+
+        $maxRedirects = $current?->getMaxRedirects();
+        if ($maxRedirects !== null) {
+            $options->setMaxRedirects($maxRedirects);
+        }
+
+        return $options;
     }
 
     /**
