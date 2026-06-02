@@ -29,6 +29,7 @@ use WordPress\AiClient\Results\Enums\FinishReasonEnum;
  */
 class CodexTextGenerationModel extends AbstractApiBasedModel implements TextGenerationModelInterface
 {
+    private const REQUEST_TIMEOUT_FLOOR = 300.0;
     private const CONNECT_TIMEOUT_FLOOR = 120.0;
 
     /**
@@ -59,14 +60,11 @@ class CodexTextGenerationModel extends AbstractApiBasedModel implements TextGene
         $options = new RequestOptions();
 
         $timeout = $current?->getTimeout();
-        if ($timeout !== null) {
-            $options->setTimeout($timeout);
-        }
+        $timeout = max($timeout ?? 0.0, self::REQUEST_TIMEOUT_FLOOR);
+        $options->setTimeout($timeout);
 
         $connectTimeout = $current?->getConnectTimeout();
-        $connectTimeoutFloor = $timeout !== null
-            ? min(self::CONNECT_TIMEOUT_FLOOR, $timeout)
-            : self::CONNECT_TIMEOUT_FLOOR;
+        $connectTimeoutFloor = min(self::CONNECT_TIMEOUT_FLOOR, $timeout);
         $options->setConnectTimeout(max($connectTimeout ?? 0.0, $connectTimeoutFloor));
 
         $maxRedirects = $current?->getMaxRedirects();
