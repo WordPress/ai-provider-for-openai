@@ -21,6 +21,7 @@ use WordPress\AiClient\Results\DTO\Candidate;
 use WordPress\AiClient\Results\DTO\GenerativeAiResult;
 use WordPress\AiClient\Results\DTO\TokenUsage;
 use WordPress\AiClient\Results\Enums\FinishReasonEnum;
+use WordPress\AiClient\Tools\DTO\FunctionCall;
 
 /**
  * Text generation model for ChatGPT Codex using the Codex Responses endpoint.
@@ -59,15 +60,15 @@ class CodexTextGenerationModel extends AbstractApiBasedModel implements TextGene
         $current = $this->getRequestOptions();
         $options = new RequestOptions();
 
-        $timeout = $current?->getTimeout();
+        $timeout = $current ? $current->getTimeout() : null;
         $timeout = max($timeout ?? 0.0, self::REQUEST_TIMEOUT_FLOOR);
         $options->setTimeout($timeout);
 
-        $connectTimeout = $current?->getConnectTimeout();
+        $connectTimeout = $current ? $current->getConnectTimeout() : null;
         $connectTimeoutFloor = min(self::CONNECT_TIMEOUT_FLOOR, $timeout);
         $options->setConnectTimeout(max($connectTimeout ?? 0.0, $connectTimeoutFloor));
 
-        $maxRedirects = $current?->getMaxRedirects();
+        $maxRedirects = $current ? $current->getMaxRedirects() : null;
         if ($maxRedirects !== null) {
             $options->setMaxRedirects($maxRedirects);
         }
@@ -120,6 +121,11 @@ class CodexTextGenerationModel extends AbstractApiBasedModel implements TextGene
             ];
         }
 
+        $functionDeclarations = $config->getFunctionDeclarations();
+        if (is_array($functionDeclarations)) {
+            $params['tools'] = $this->prepareToolsParam($functionDeclarations);
+        }
+
         foreach ($config->getCustomOptions() as $key => $value) {
             if (isset($params[$key])) {
                 throw new InvalidArgumentException(
@@ -142,28 +148,154 @@ class CodexTextGenerationModel extends AbstractApiBasedModel implements TextGene
      */
     private function prepareInput(array $messages): array
     {
+        $this->validateMessages($messages);
+
         $input = [];
         foreach ($messages as $message) {
-            $content = [];
-            foreach ($message->getParts() as $part) {
-                if (!$part->getType()->isText()) {
-                    throw new InvalidArgumentException(
-                        'Codex text generation currently supports text message parts only.'
-                    );
-                }
-                $content[] = [
-                    'type' => $message->getRole()->isModel() ? 'output_text' : 'input_text',
-                    'text' => $part->getText(),
-                ];
+            $inputItem = $this->getMessageInputItem($message);
+            if ($inputItem !== null) {
+                $input[] = $inputItem;
             }
-
-            $input[] = [
-                'role' => $this->roleToResponsesRole($message->getRole()),
-                'content' => $content,
-            ];
         }
 
         return $input;
+    }
+
+    /**
+     * Validates Responses API message shape.
+     *
+     * @since n.e.x.t
+     *
+     * @param list<Message> $messages Prompt messages.
+     * @return void
+     */
+    private function validateMessages(array $messages): void
+    {
+        foreach ($messages as $message) {
+            $parts = $message->getParts();
+            if (count($parts) <= 1) {
+                continue;
+            }
+
+            foreach ($parts as $part) {
+                $type = $part->getType();
+                if ($type->isFunctionCall() || $type->isFunctionResponse()) {
+                    throw new InvalidArgumentException(
+                        'Function call and function response parts must be the only part in a message for the Codex '
+                        . 'Responses API.'
+                    );
+                }
+            }
+        }
+    }
+
+    /**
+     * Converts a message to a Codex Responses input item.
+     *
+     * @since n.e.x.t
+     *
+     * @param Message $message Prompt message.
+     * @return array<string, mixed>|null Input item, or null for an empty message.
+     */
+    private function getMessageInputItem(Message $message): ?array
+    {
+        $parts = $message->getParts();
+        if (empty($parts)) {
+            return null;
+        }
+
+        $content = [];
+        foreach ($parts as $part) {
+            $partData = $this->getMessagePartData($part, $message->getRole());
+            $partType = $partData['type'] ?? '';
+            if ($partType === 'function_call' || $partType === 'function_call_output') {
+                return $partData;
+            }
+            $content[] = $partData;
+        }
+
+        return [
+            'role' => $this->roleToResponsesRole($message->getRole()),
+            'content' => $content,
+        ];
+    }
+
+    /**
+     * Converts a message part to a Codex Responses input part.
+     *
+     * @since n.e.x.t
+     *
+     * @param MessagePart     $part Message part.
+     * @param MessageRoleEnum $role Message role.
+     * @return array<string, mixed> Input part.
+     */
+    private function getMessagePartData(MessagePart $part, MessageRoleEnum $role): array
+    {
+        $type = $part->getType();
+        if ($type->isText()) {
+            return [
+                'type' => $role->isModel() ? 'output_text' : 'input_text',
+                'text' => $part->getText(),
+            ];
+        }
+
+        if ($type->isFunctionCall()) {
+            $functionCall = $part->getFunctionCall();
+            if (!$functionCall) {
+                throw new InvalidArgumentException(
+                    'The function_call typed message part must contain a function call.'
+                );
+            }
+
+            return [
+                'type' => 'function_call',
+                'call_id' => $functionCall->getId(),
+                'name' => $functionCall->getName(),
+                'arguments' => json_encode($functionCall->getArgs()),
+            ];
+        }
+
+        if ($type->isFunctionResponse()) {
+            $functionResponse = $part->getFunctionResponse();
+            if (!$functionResponse) {
+                throw new InvalidArgumentException(
+                    'The function_response typed message part must contain a function response.'
+                );
+            }
+
+            return [
+                'type' => 'function_call_output',
+                'call_id' => $functionResponse->getId(),
+                'output' => json_encode($functionResponse->getResponse()),
+            ];
+        }
+
+        throw new InvalidArgumentException(
+            'Codex text generation currently supports text and function message parts only.'
+        );
+    }
+
+    /**
+     * Prepares Codex Responses tool declarations.
+     *
+     * @since n.e.x.t
+     *
+     * @param array<int, mixed> $functionDeclarations Function declarations.
+     * @return list<array<string, mixed>> Tool declarations.
+     */
+    private function prepareToolsParam(array $functionDeclarations): array
+    {
+        $tools = [];
+        foreach ($functionDeclarations as $functionDeclaration) {
+            $tools[] = [
+                'type' => 'function',
+                'name' => $functionDeclaration->getName(),
+                'description' => $functionDeclaration->getDescription(),
+                'parameters' => $functionDeclaration->getParameters(),
+            ];
+        }
+
+        return $tools;
     }
 
     /**
@@ -194,17 +326,33 @@ class CodexTextGenerationModel extends AbstractApiBasedModel implements TextGene
             $data = $this->parseSseResponse((string) $response->getBody());
         }
 
-        $text = '';
-        if (isset($data['output_text']) && is_string($data['output_text'])) {
-            $text = $data['output_text'];
-        } elseif (isset($data['output']) && is_array($data['output'])) {
-            /** @var array<int, mixed> $output */
-            $output = $data['output'];
-            $text = $this->extractOutputText($output);
+        $candidates = [];
+        if (isset($data['output']) && is_array($data['output'])) {
+            foreach ($data['output'] as $index => $outputItem) {
+                if (!is_array($outputItem)) {
+                    continue;
+                }
+                $candidate = $this->parseOutputItemToCandidate($outputItem, (int) $index);
+                if ($candidate !== null) {
+                    $candidates[] = $candidate;
+                }
+            }
         }
 
-        if ($text === '') {
-            throw ResponseException::fromMissingData('ChatGPT Codex', 'output_text');
+        if (
+            empty($candidates) &&
+            isset($data['output_text']) &&
+            is_string($data['output_text']) &&
+            $data['output_text'] !== ''
+        ) {
+            $candidates[] = new Candidate(
+                new ModelMessage([new MessagePart($data['output_text'])]),
+                FinishReasonEnum::stop()
+            );
+        }
+
+        if (empty($candidates)) {
+            throw ResponseException::fromMissingData('ChatGPT Codex', 'output');
         }
 
         $usage = isset($data['usage']) && is_array($data['usage']) ? $data['usage'] : [];
@@ -213,7 +361,7 @@ class CodexTextGenerationModel extends AbstractApiBasedModel implements TextGene
 
         return new GenerativeAiResult(
             isset($data['id']) && is_string($data['id']) ? $data['id'] : '',
-            [new Candidate(new ModelMessage([new MessagePart($text)]), FinishReasonEnum::stop())],
+            $candidates,
             new TokenUsage(
                 $inputTokens,
                 $outputTokens,
@@ -223,6 +371,86 @@ class CodexTextGenerationModel extends AbstractApiBasedModel implements TextGene
             $this->metadata(),
             $data
         );
+    }
+
+    /**
+     * Parses one Codex Responses output item into a candidate.
+     *
+     * @since n.e.x.t
+     *
+     * @param array<string, mixed> $outputItem Output item.
+     * @param int                  $index      Output index.
+     * @return Candidate|null Candidate, or null for unsupported output items.
+     */
+    private function parseOutputItemToCandidate(array $outputItem, int $index): ?Candidate
+    {
+        $type = $outputItem['type'] ?? '';
+        if ($type === 'function_call') {
+            return $this->parseFunctionCallOutputToCandidate($outputItem, $index);
+        }
+
+        if ($type !== 'message') {
+            return null;
+        }
+
+        $parts = [];
+        if (isset($outputItem['content']) && is_array($outputItem['content'])) {
+            foreach ($outputItem['content'] as $content) {
+                if (!is_array($content)) {
+                    continue;
+                }
+                if (
+                    ($content['type'] ?? '') === 'output_text' &&
+                    isset($content['text']) &&
+                    is_string($content['text'])
+                ) {
+                    $parts[] = new MessagePart($content['text']);
+                }
+            }
+        }
+
+        if (empty($parts)) {
+            return null;
+        }
+
+        return new Candidate(new ModelMessage($parts), FinishReasonEnum::stop());
+    }
+
+    /**
+     * Parses one Codex function_call output item into a tool-call candidate.
+     *
+     * @since n.e.x.t
+     *
+     * @param array<string, mixed> $outputItem Function call output item.
+     * @param int                  $index      Output index.
+     * @return Candidate Tool-call candidate.
+     */
+    private function parseFunctionCallOutputToCandidate(array $outputItem, int $index): Candidate
+    {
+        if (!isset($outputItem['call_id']) || !is_string($outputItem['call_id'])) {
+            throw ResponseException::fromMissingData('ChatGPT Codex', "output[{$index}].call_id");
+        }
+        if (!isset($outputItem['name']) || !is_string($outputItem['name'])) {
+            throw ResponseException::fromMissingData('ChatGPT Codex', "output[{$index}].name");
+        }
+
+        $args = null;
+        if (isset($outputItem['arguments']) && is_string($outputItem['arguments'])) {
+            $decoded = json_decode($outputItem['arguments'], true);
+            if (is_array($decoded) && count($decoded) > 0) {
+                $args = $decoded;
+            }
+        }
+
+        $part = new MessagePart(
+            new FunctionCall(
+                $outputItem['call_id'],
+                $outputItem['name'],
+                $args
+            )
+        );
+
+        return new Candidate(new ModelMessage([$part]), FinishReasonEnum::toolCalls());
     }
 
     /**
