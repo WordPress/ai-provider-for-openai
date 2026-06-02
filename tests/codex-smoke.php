@@ -24,6 +24,7 @@ $codexSmokeTokens = [
 $codexSmokeRefreshCalls = 0;
 $codexSmokeUpdatedTokens = null;
 $codexSmokeAutoload = null;
+$codexSmokeRequestTimeouts = [];
 $codexSmokeRequestConnectTimeouts = [];
 
 function get_option(string $option, $default = false)
@@ -92,7 +93,7 @@ $registry->setHttpTransporter(
     new class implements HttpTransporterInterface {
         public function send(Request $request, ?RequestOptions $options = null): Response
         {
-            global $codexSmokeRequestConnectTimeouts;
+            global $codexSmokeRequestConnectTimeouts, $codexSmokeRequestTimeouts;
 
             $requestOptions = $request->getOptions();
 
@@ -101,6 +102,7 @@ $registry->setHttpTransporter(
             assert(in_array($request->getHeaderAsString('ChatGPT-Account-ID'), ['test-account-id', 'env-account-id'], true));
             assert($request->getHeaderAsString('X-OpenAI-Fedramp') === 'true');
             assert($requestOptions instanceof RequestOptions);
+            $codexSmokeRequestTimeouts[] = $requestOptions->getTimeout();
             $codexSmokeRequestConnectTimeouts[] = $requestOptions->getConnectTimeout();
 
             $data = $request->getData();
@@ -133,6 +135,7 @@ $model = $registry->getProviderModel('codex', 'gpt-5.5');
 $result = $model->generateTextResult([new UserMessage([new MessagePart('hello')])]);
 
 assert($result->toText() === 'codex smoke');
+assert($codexSmokeRequestTimeouts[0] === 300.0);
 assert($codexSmokeRequestConnectTimeouts[0] === 120.0);
 assert($codexSmokeRefreshCalls === 1);
 assert(is_array($codexSmokeUpdatedTokens));
@@ -160,12 +163,13 @@ assert(($envTokens['fedramp'] ?? null) === true);
 echo "Codex env token smoke passed.\n";
 
 $shortOptions = new RequestOptions();
-$shortOptions->setTimeout(60.0);
+$shortOptions->setTimeout(15.0);
 $shortOptions->setConnectTimeout(15.0);
 $model->setRequestOptions($shortOptions);
 $result = $model->generateTextResult([new UserMessage([new MessagePart('hello again')])]);
 
 assert($result->toText() === 'codex smoke');
-assert($codexSmokeRequestConnectTimeouts[1] === 60.0);
+assert($codexSmokeRequestTimeouts[1] === 300.0);
+assert($codexSmokeRequestConnectTimeouts[1] === 120.0);
 
 echo "Codex request timeout floor smoke passed.\n";
