@@ -8,7 +8,9 @@ use WordPress\AiClient\Providers\Http\Contracts\HttpTransporterInterface;
 use WordPress\AiClient\Providers\Http\DTO\Request;
 use WordPress\AiClient\Providers\Http\DTO\RequestOptions;
 use WordPress\AiClient\Providers\Http\DTO\Response;
+use WordPress\AiClient\Providers\Models\DTO\ModelConfig;
 use WordPress\AiClient\Providers\ProviderRegistry;
+use WordPress\AiClient\Tools\DTO\FunctionDeclaration;
 use WordPress\OpenAiAiProvider\Codex\CodexProvider;
 
 require_once dirname(__DIR__) . '/vendor/autoload.php';
@@ -98,8 +100,20 @@ $registry->setHttpTransporter(
             $requestOptions = $request->getOptions();
 
             assert($request->getUri() === 'https://chatgpt.com/backend-api/codex/responses');
-            assert(in_array($request->getHeaderAsString('Authorization'), ['Bearer fresh-access-token', 'Bearer env-access-token'], true));
-            assert(in_array($request->getHeaderAsString('ChatGPT-Account-ID'), ['test-account-id', 'env-account-id'], true));
+            assert(
+                in_array(
+                    $request->getHeaderAsString('Authorization'),
+                    ['Bearer fresh-access-token', 'Bearer env-access-token'],
+                    true
+                )
+            );
+            assert(
+                in_array(
+                    $request->getHeaderAsString('ChatGPT-Account-ID'),
+                    ['test-account-id', 'env-account-id'],
+                    true
+                )
+            );
             assert($request->getHeaderAsString('X-OpenAI-Fedramp') === 'true');
             assert($requestOptions instanceof RequestOptions);
             $codexSmokeRequestTimeouts[] = $requestOptions->getTimeout();
@@ -112,12 +126,60 @@ $registry->setHttpTransporter(
             assert(($data['stream'] ?? null) === true);
             assert(isset($data['instructions']) && is_string($data['instructions']));
 
+            if (isset($data['tools'])) {
+                assert(is_array($data['tools']));
+                assert(($data['tools'][0]['type'] ?? null) === 'function');
+                assert(($data['tools'][0]['name'] ?? null) === 'workspace_read');
+                assert(
+                    ($data['tools'][0]['parameters']['properties']['path']['type'] ?? null) === 'string'
+                );
+
+                $response = [
+                    'id' => 'resp_tool',
+                    'output' => [
+                        [
+                            'type' => 'function_call',
+                            'call_id' => 'call_read',
+                            'name' => 'workspace_read',
+                            'arguments' => '{"path":"README.md"}',
+                        ],
+                    ],
+                    'usage' => [
+                        'input_tokens' => 4,
+                        'output_tokens' => 5,
+                        'total_tokens' => 9,
+                    ],
+                ];
+
+                $body = implode(
+                    "\n\n",
+                    [
+                        'data: ' . json_encode(['type' => 'response.completed', 'response' => $response]),
+                        'data: [DONE]',
+                    ]
+                );
+
+                return new Response(200, ['Content-Type' => 'text/event-stream'], $body);
+            }
+
             $body = implode(
                 "\n\n",
                 [
                     'data: {"type":"response.output_text.delta","delta":"codex "}',
                     'data: {"delta":"smoke"}',
-                    'data: {"type":"response.completed","response":{"id":"resp_test","usage":{"input_tokens":1,"output_tokens":2,"total_tokens":3}}}',
+                    'data: ' . json_encode(
+                        [
+                            'type' => 'response.completed',
+                            'response' => [
+                                'id' => 'resp_test',
+                                'usage' => [
+                                    'input_tokens' => 1,
+                                    'output_tokens' => 2,
+                                    'total_tokens' => 3,
+                                ],
+                            ],
+                        ]
+                    ),
                     'data: [DONE]',
                 ]
             );
@@ -144,6 +206,35 @@ assert(($codexSmokeUpdatedTokens['refresh_token'] ?? null) === 'fresh-refresh-to
 assert($codexSmokeAutoload === false);
 
 echo "Codex smoke passed.\n";
+
+$toolConfig = new ModelConfig();
+$toolConfig->setFunctionDeclarations([
+    new FunctionDeclaration(
+        'workspace_read',
+        'Read a workspace file.',
+        [
+            'type' => 'object',
+            'properties' => [
+                'path' => ['type' => 'string'],
+            ],
+            'required' => ['path'],
+        ]
+    ),
+]);
+$model->setConfig($toolConfig);
+$toolResult = $model->generateTextResult([new UserMessage([new MessagePart('read README')])]);
+$toolCandidate = $toolResult->getCandidates()[0];
+$toolCall = $toolCandidate->getMessage()->getParts()[0]->getFunctionCall();
+
+assert($toolCall !== null);
+assert($toolCall->getId() === 'call_read');
+assert($toolCall->getName() === 'workspace_read');
+assert($toolCall->getArgs() === ['path' => 'README.md']);
+assert($toolCandidate->getFinishReason()->isToolCalls());
+
+echo "Codex tool call smoke passed.\n";
+
+$model->setConfig(new ModelConfig());
 
 $codexSmokeTokens = [];
 putenv('AI_PROVIDER_OPENAI_CODEX_ACCESS_TOKEN=env-access-token');
