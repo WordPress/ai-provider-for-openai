@@ -60,6 +60,13 @@ use WordPress\OpenAiAiProvider\Provider\OpenAiProvider;
 class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGenerationModelInterface
 {
     /**
+     * Maps OpenAI-safe function names back to the original client tool names.
+     *
+     * @var array<string, string>
+     */
+    private array $openAiFunctionNameMap = [];
+
+    /**
      * {@inheritDoc}
      *
      * @since 1.0.0
@@ -363,7 +370,7 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
             return [
                 'type' => 'function_call',
                 'call_id' => $functionCall->getId(),
-                'name' => $functionCall->getName(),
+                'name' => $this->openAiFunctionName($functionCall->getName()),
                 'arguments' => json_encode($functionCall->getArgs()),
             ];
         }
@@ -402,12 +409,15 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
         ?WebSearch $webSearch
     ): array {
         $tools = [];
+        $this->openAiFunctionNameMap = [];
 
         if (is_array($functionDeclarations)) {
             foreach ($functionDeclarations as $functionDeclaration) {
+                $openAiName = $this->openAiFunctionName($functionDeclaration->getName());
+                $this->openAiFunctionNameMap[$openAiName] = $functionDeclaration->getName();
                 $tools[] = [
                     'type' => 'function',
-                    'name' => $functionDeclaration->getName(),
+                    'name' => $openAiName,
                     'description' => $functionDeclaration->getDescription(),
                     'parameters' => $functionDeclaration->getParameters(),
                 ];
@@ -607,7 +617,7 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
 
         $functionCall = new FunctionCall(
             $outputItem['call_id'],
-            $outputItem['name'],
+            $this->originalFunctionName($outputItem['name']),
             $args
         );
 
@@ -615,6 +625,38 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
         $message = new Message(MessageRoleEnum::model(), [$part]);
 
         return new Candidate($message, FinishReasonEnum::toolCalls());
+    }
+
+    /**
+     * Converts a PHP AI Client function name to an OpenAI-safe function name.
+     *
+     * @since 1.0.0
+     *
+     * @param string $name Original function name.
+     * @return string OpenAI-safe function name.
+     */
+    private function openAiFunctionName(string $name): string
+    {
+        $safe = preg_replace('/[^a-zA-Z0-9_-]+/', '__', $name) ?? '';
+        $safe = trim($safe, '_');
+        if ($safe === '') {
+            $safe = 'tool';
+        }
+
+        return $safe;
+    }
+
+    /**
+     * Restores the original PHP AI Client function name from an OpenAI function call.
+     *
+     * @since 1.0.0
+     *
+     * @param string $name OpenAI function name.
+     * @return string Original function name when known.
+     */
+    private function originalFunctionName(string $name): string
+    {
+        return $this->openAiFunctionNameMap[$name] ?? $name;
     }
 
     /**
@@ -663,7 +705,7 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
             return new MessagePart(
                 new FunctionCall(
                     $contentItem['call_id'],
-                    $contentItem['name'],
+                    $this->originalFunctionName($contentItem['name']),
                     $args
                 )
             );
