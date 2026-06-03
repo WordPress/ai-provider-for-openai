@@ -129,6 +129,14 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
         $imageCapabilities = [
             CapabilityEnum::imageGeneration(),
         ];
+        $embeddingCapabilities = [
+            CapabilityEnum::embeddingGeneration(),
+        ];
+        $embeddingOptions = [
+            new SupportedOption(OptionEnum::inputModalities(), [[ModalityEnum::text()]]),
+            new SupportedOption(OptionEnum::embeddingDimensions()),
+            new SupportedOption(OptionEnum::customOptions()),
+        ];
         $dalleImageOptions = [
             new SupportedOption(OptionEnum::inputModalities(), [[ModalityEnum::text()]]),
             new SupportedOption(OptionEnum::outputModalities(), [[ModalityEnum::image()]]),
@@ -185,6 +193,8 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
                     $gptMultimodalSpeechOutputOptions,
                     $gptSearchOptions,
                     $imageCapabilities,
+                    $embeddingCapabilities,
+                    $embeddingOptions,
                     $dalleImageOptions,
                     $gptImageOptions,
                     $ttsCapabilities,
@@ -203,7 +213,10 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
                         }
                     }
 
-                    if (
+                    if (str_starts_with($modelId, 'text-embedding-')) {
+                        $modelCaps = $embeddingCapabilities;
+                        $modelOptions = $embeddingOptions;
+                    } elseif (
                         str_starts_with($modelId, 'dall-e-') ||
                         str_starts_with($modelId, 'gpt-image-')
                     ) {
