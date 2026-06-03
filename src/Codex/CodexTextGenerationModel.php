@@ -321,9 +321,15 @@ class CodexTextGenerationModel extends AbstractApiBasedModel implements TextGene
      */
     private function parseResponseToResult(Response $response): GenerativeAiResult
     {
-        $data = $response->getData();
+        $body = (string) $response->getBody();
+        if (strpos($body, 'data: ') !== false) {
+            $data = $this->parseSseResponse($body);
+        } else {
+            $data = $response->getData();
+        }
+
         if (!is_array($data)) {
-            $data = $this->parseSseResponse((string) $response->getBody());
+            $data = [];
         }
 
         $candidates = [];
@@ -400,9 +406,10 @@ class CodexTextGenerationModel extends AbstractApiBasedModel implements TextGene
                     continue;
                 }
                 if (
-                    ($content['type'] ?? '') === 'output_text' &&
+                    in_array(($content['type'] ?? ''), ['output_text', 'text'], true) &&
                     isset($content['text']) &&
-                    is_string($content['text'])
+                    is_string($content['text']) &&
+                    $content['text'] !== ''
                 ) {
                     $parts[] = new MessagePart($content['text']);
                 }
@@ -466,6 +473,7 @@ class CodexTextGenerationModel extends AbstractApiBasedModel implements TextGene
         $text = '';
         /** @var array<string, mixed> $completed */
         $completed = [];
+        $outputItems = [];
         $eventData = '';
         $lines = preg_split("/\r\n|\n|\r/", $body);
 
@@ -475,7 +483,7 @@ class CodexTextGenerationModel extends AbstractApiBasedModel implements TextGene
 
         foreach ($lines as $line) {
             if (trim($line) === '') {
-                $this->consumeSseEventData($eventData, $text, $completed);
+                $this->consumeSseEventData($eventData, $text, $completed, $outputItems);
                 $eventData = '';
                 continue;
             }
@@ -485,10 +493,13 @@ class CodexTextGenerationModel extends AbstractApiBasedModel implements TextGene
             }
         }
 
-        $this->consumeSseEventData($eventData, $text, $completed);
+        $this->consumeSseEventData($eventData, $text, $completed, $outputItems);
 
         if ($text !== '') {
             $completed['output_text'] = $text;
+        }
+        if (!empty($outputItems) && empty($completed['output'])) {
+            $completed['output'] = array_values($outputItems);
         }
 
         return $completed;
@@ -502,9 +513,10 @@ class CodexTextGenerationModel extends AbstractApiBasedModel implements TextGene
      * @param string $eventData Event data.
      * @param string $text Accumulated text.
      * @param array<string, mixed> $completed Completed response data.
+     * @param array<int, array<string, mixed>> $outputItems Accumulated completed output items.
      * @return void
      */
-    private function consumeSseEventData(string $eventData, string &$text, array &$completed): void
+    private function consumeSseEventData(string $eventData, string &$text, array &$completed, array &$outputItems): void
     {
         if ($eventData === '' || $eventData === '[DONE]') {
             return;
@@ -515,20 +527,29 @@ class CodexTextGenerationModel extends AbstractApiBasedModel implements TextGene
             return;
         }
 
+        $type = (string) ($data['type'] ?? '');
         if (
-            ($data['type'] ?? '') === 'response.output_text.delta' &&
+            $type === 'response.output_text.delta' &&
             isset($data['delta']) &&
             is_string($data['delta'])
         ) {
             $text .= $data['delta'];
-        } elseif (isset($data['delta']) && is_string($data['delta'])) {
+        } elseif ($type === '' && isset($data['delta']) && is_string($data['delta'])) {
             $text .= $data['delta'];
         }
 
-        if (isset($data['response']) && is_array($data['response']) && ($data['type'] ?? '') === 'response.completed') {
+        if (isset($data['response']) && is_array($data['response']) && $type === 'response.completed') {
             /** @var array<string, mixed> $response */
             $response = $data['response'];
             $completed = $response;
+        }
+
+        if (in_array($type, ['response.output_item.done', 'response.output_item.added'], true)) {
+            $item = $data['item'] ?? $data['output_item'] ?? null;
+            if (is_array($item)) {
+                $index = $this->getIntegerValue($data['output_index'] ?? count($outputItems), count($outputItems));
+                $outputItems[$index] = $item;
+            }
         }
     }
 

@@ -126,6 +126,45 @@ $registry->setHttpTransporter(
             assert(($data['stream'] ?? null) === true);
             assert(isset($data['instructions']) && is_string($data['instructions']));
 
+            $inputText = '';
+            foreach (($data['input'] ?? []) as $inputItem) {
+                foreach (($inputItem['content'] ?? []) as $contentItem) {
+                    if (is_array($contentItem) && isset($contentItem['text']) && is_string($contentItem['text'])) {
+                        $inputText .= $contentItem['text'];
+                    }
+                }
+            }
+
+            if (strpos($inputText, 'completed text item') !== false) {
+                $body = implode(
+                    "\n\n",
+                    [
+                        'data: ' . json_encode(
+                            [
+                                'type' => 'response.completed',
+                                'response' => [
+                                    'id' => 'resp_text_item',
+                                    'output' => [
+                                        [
+                                            'type' => 'message',
+                                            'content' => [
+                                                [
+                                                    'type' => 'text',
+                                                    'text' => 'completed text normalized',
+                                                ],
+                                            ],
+                                        ],
+                                    ],
+                                ],
+                            ]
+                        ),
+                        'data: [DONE]',
+                    ]
+                );
+
+                return new Response(200, ['Content-Type' => 'text/event-stream'], $body);
+            }
+
             if (isset($data['tools'])) {
                 assert(is_array($data['tools']));
                 assert(($data['tools'][0]['type'] ?? null) === 'function');
@@ -151,13 +190,22 @@ $registry->setHttpTransporter(
                     ],
                 ];
 
-                $body = implode(
-                    "\n\n",
-                    [
-                        'data: ' . json_encode(['type' => 'response.completed', 'response' => $response]),
-                        'data: [DONE]',
-                    ]
-                );
+                $body = strpos($inputText, 'streamed tool item') !== false
+                    ? implode(
+                        "\n\n",
+                        [
+                            'data: ' . json_encode(['type' => 'response.output_item.done', 'output_index' => 0, 'item' => $response['output'][0]]),
+                            'data: ' . json_encode(['type' => 'response.completed', 'response' => ['id' => 'resp_tool_streamed']]),
+                            'data: [DONE]',
+                        ]
+                    )
+                    : implode(
+                        "\n\n",
+                        [
+                            'data: ' . json_encode(['type' => 'response.completed', 'response' => $response]),
+                            'data: [DONE]',
+                        ]
+                    );
 
                 return new Response(200, ['Content-Type' => 'text/event-stream'], $body);
             }
@@ -233,6 +281,20 @@ assert($toolCall->getArgs() === ['path' => 'README.md']);
 assert($toolCandidate->getFinishReason()->isToolCalls());
 
 echo "Codex tool call smoke passed.\n";
+
+$textItemResult = $model->generateTextResult([new UserMessage([new MessagePart('completed text item')])]);
+assert($textItemResult->toText() === 'completed text normalized');
+
+echo "Codex completed text item smoke passed.\n";
+
+$streamedToolResult = $model->generateTextResult([new UserMessage([new MessagePart('streamed tool item')])]);
+$streamedToolCall = $streamedToolResult->getCandidates()[0]->getMessage()->getParts()[0]->getFunctionCall();
+assert($streamedToolCall !== null);
+assert($streamedToolCall->getId() === 'call_read');
+assert($streamedToolCall->getName() === 'workspace_read');
+assert($streamedToolCall->getArgs() === ['path' => 'README.md']);
+
+echo "Codex streamed tool item smoke passed.\n";
 
 $model->setConfig(new ModelConfig());
 
