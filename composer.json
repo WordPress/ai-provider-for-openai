@@ -27,6 +27,7 @@
         "dealerdirect/phpcodesniffer-composer-installer": "^1.0",
         "phpcompatibility/php-compatibility": "dev-develop",
         "phpstan/phpstan": "~2.1",
+        "phpunit/phpunit": "^9.5 || ^10.0",
         "slevomat/coding-standard": "^8.20",
         "squizlabs/php_codesniffer": "^3.7 || ^4.0",
         "wordpress/php-ai-client": "^0.4 || dev-trunk"
@@ -39,6 +40,11 @@
     "autoload": {
         "psr-4": {
             "WordPress\\OpenAiAiProvider\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "WordPress\\OpenAiAiProvider\\Tests\\": "tests/"
         }
     },
     "config": {
@@ -59,6 +65,7 @@
         ],
         "phpcbf": "phpcbf",
         "phpcs": "phpcs",
-        "phpstan": "phpstan analyze --memory-limit=256M"
+        "phpstan": "phpstan analyze --memory-limit=256M",
+        "test": "phpunit"
     }
 }
