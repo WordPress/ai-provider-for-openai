@@ -35,7 +35,7 @@ class OpenAiEmbeddingGenerationModelTest extends TestCase
             }
         };
 
-        $model->setConfig(ModelConfig::fromArray(['embeddingDimensions' => 3]));
+        $model->setConfig(ModelConfig::fromArray(['dimensions' => 3]));
         $params = $model->exposePrepareGenerateEmbeddingParams([
             new Message(MessageRoleEnum::user(), [new MessagePart('Search text')]),
         ]);
