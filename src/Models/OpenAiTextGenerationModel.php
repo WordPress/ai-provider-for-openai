@@ -67,6 +67,13 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
     private array $openAiFunctionNameMap = [];
 
     /**
+     * Maps original client tool names to OpenAI-safe function names.
+     *
+     * @var array<string, string>
+     */
+    private array $clientFunctionNameMap = [];
+
+    /**
      * {@inheritDoc}
      *
      * @since 1.0.0
@@ -367,10 +374,16 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
                     'The function_call typed message part must contain a function call.'
                 );
             }
+            $functionName = $functionCall->getName();
+            if ($functionName === null) {
+                throw new RuntimeException(
+                    'The function_call typed message part must contain a function name.'
+                );
+            }
             return [
                 'type' => 'function_call',
                 'call_id' => $functionCall->getId(),
-                'name' => $this->openAiFunctionName($functionCall->getName()),
+                'name' => $this->openAiFunctionName($functionName),
                 'arguments' => json_encode($functionCall->getArgs()),
             ];
         }
@@ -410,11 +423,11 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
     ): array {
         $tools = [];
         $this->openAiFunctionNameMap = [];
+        $this->clientFunctionNameMap = [];
 
         if (is_array($functionDeclarations)) {
             foreach ($functionDeclarations as $functionDeclaration) {
                 $openAiName = $this->openAiFunctionName($functionDeclaration->getName());
-                $this->openAiFunctionNameMap[$openAiName] = $functionDeclaration->getName();
                 $tools[] = [
                     'type' => 'function',
                     'name' => $openAiName,
@@ -637,11 +650,22 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
      */
     private function openAiFunctionName(string $name): string
     {
-        $safe = preg_replace('/[^a-zA-Z0-9_-]+/', '__', $name) ?? '';
-        $safe = trim($safe, '_');
+        if (isset($this->clientFunctionNameMap[$name])) {
+            return $this->clientFunctionNameMap[$name];
+        }
+
+        $safe = preg_replace('/[^a-zA-Z0-9_-]+/', '_', $name) ?? '';
+        $safe = trim($safe, '_-');
         if ($safe === '') {
             $safe = 'tool';
         }
+
+        if ($safe !== $name || isset($this->openAiFunctionNameMap[$safe])) {
+            $safe = substr($safe, 0, 54) . '_' . substr(sha1($name), 0, 8);
+        }
+
+        $this->clientFunctionNameMap[$name] = $safe;
+        $this->openAiFunctionNameMap[$safe] = $name;
 
         return $safe;
     }
