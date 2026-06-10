@@ -22,6 +22,7 @@ use WordPress\AiClient\Results\DTO\GenerativeAiResult;
 use WordPress\AiClient\Results\DTO\TokenUsage;
 use WordPress\AiClient\Results\Enums\FinishReasonEnum;
 use WordPress\AiClient\Tools\DTO\FunctionCall;
+use WordPress\AiClient\Tools\DTO\FunctionDeclaration;
 
 /**
  * Text generation model for ChatGPT Codex using the Codex Responses endpoint.
@@ -280,7 +281,7 @@ class CodexTextGenerationModel extends AbstractApiBasedModel implements TextGene
      *
      * @since n.e.x.t
      *
-     * @param array<int, mixed> $functionDeclarations Function declarations.
+     * @param list<FunctionDeclaration> $functionDeclarations Function declarations.
      * @return list<array<string, mixed>> Tool declarations.
      */
     private function prepareToolsParam(array $functionDeclarations): array
@@ -338,6 +339,7 @@ class CodexTextGenerationModel extends AbstractApiBasedModel implements TextGene
                 if (!is_array($outputItem)) {
                     continue;
                 }
+                /** @var array<string, mixed> $outputItem */
                 $candidate = $this->parseOutputItemToCandidate($outputItem, (int) $index);
                 if ($candidate !== null) {
                     $candidates[] = $candidate;
@@ -527,7 +529,8 @@ class CodexTextGenerationModel extends AbstractApiBasedModel implements TextGene
             return;
         }
 
-        $type = (string) ($data['type'] ?? '');
+        $rawType = $data['type'] ?? '';
+        $type = is_scalar($rawType) ? (string) $rawType : '';
         if (
             $type === 'response.output_text.delta' &&
             isset($data['delta']) &&
@@ -548,40 +551,10 @@ class CodexTextGenerationModel extends AbstractApiBasedModel implements TextGene
             $item = $data['item'] ?? $data['output_item'] ?? null;
             if (is_array($item)) {
                 $index = $this->getIntegerValue($data['output_index'] ?? count($outputItems), count($outputItems));
+                /** @var array<string, mixed> $item */
                 $outputItems[$index] = $item;
             }
         }
-    }
-
-    /**
-     * Extracts output text from Responses API output items.
-     *
-     * @since n.e.x.t
-     *
-     * @param array<int, mixed> $output Output items.
-     * @return string Output text.
-     */
-    private function extractOutputText(array $output): string
-    {
-        $parts = [];
-        foreach ($output as $item) {
-            if (!is_array($item) || ($item['type'] ?? '') !== 'message' || !isset($item['content'])) {
-                continue;
-            }
-            if (!is_array($item['content'])) {
-                continue;
-            }
-
-            foreach ($item['content'] as $content) {
-                if (is_array($content) && ($content['type'] ?? '') === 'output_text' && isset($content['text'])) {
-                    if (is_string($content['text'])) {
-                        $parts[] = $content['text'];
-                    }
-                }
-            }
-        }
-
-        return implode("\n", $parts);
     }
 
     /**
