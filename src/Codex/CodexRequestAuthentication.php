@@ -5,16 +5,15 @@ declare(strict_types=1);
 namespace WordPress\OpenAiAiProvider\Codex;
 
 use WordPress\AiClient\Providers\Http\Contracts\RequestAuthenticationInterface;
+use WordPress\AiClient\Providers\Http\DTO\BearerTokenRequestAuthentication;
 use WordPress\AiClient\Providers\Http\DTO\Request;
 
 /**
  * Authenticates requests to the ChatGPT Codex backend.
  *
- * Extends API key authentication temporarily so the current client registry accepts it.
- *
  * @since n.e.x.t
  */
-class CodexRequestAuthentication implements RequestAuthenticationInterface
+class CodexRequestAuthentication extends BearerTokenRequestAuthentication implements RequestAuthenticationInterface
 {
     /**
      * @var CodexTokenStore Token store.
@@ -36,6 +35,8 @@ class CodexRequestAuthentication implements RequestAuthenticationInterface
      */
     public function __construct(CodexTokenStore $tokenStore, CodexOAuthClient $oauthClient)
     {
+        parent::__construct('');
+
         $this->tokenStore = $tokenStore;
         $this->oauthClient = $oauthClient;
     }

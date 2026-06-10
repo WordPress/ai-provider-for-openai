@@ -11,7 +11,10 @@ use WordPress\AiClient\Providers\Http\DTO\Response;
 use WordPress\AiClient\Providers\Models\DTO\ModelConfig;
 use WordPress\AiClient\Providers\ProviderRegistry;
 use WordPress\AiClient\Tools\DTO\FunctionDeclaration;
+use WordPress\OpenAiAiProvider\Codex\CodexOAuthClient;
 use WordPress\OpenAiAiProvider\Codex\CodexProvider;
+use WordPress\OpenAiAiProvider\Codex\CodexRequestAuthentication;
+use WordPress\OpenAiAiProvider\Codex\CodexTokenStore;
 
 require_once dirname(__DIR__) . '/vendor/autoload.php';
 require_once dirname(__DIR__) . '/src/autoload.php';
@@ -238,6 +241,11 @@ $registry->setHttpTransporter(
 );
 
 $registry->registerProvider(CodexProvider::class);
+$codexTokenStore = new CodexTokenStore();
+$registry->setProviderRequestAuthentication(
+    'codex',
+    new CodexRequestAuthentication($codexTokenStore, new CodexOAuthClient($codexTokenStore))
+);
 
 assert($registry->isProviderConfigured('codex') === true);
 

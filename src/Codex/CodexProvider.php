@@ -9,10 +9,8 @@ use WordPress\AiClient\Common\Exception\RuntimeException;
 use WordPress\AiClient\Providers\ApiBasedImplementation\AbstractApiProvider;
 use WordPress\AiClient\Providers\Contracts\ModelMetadataDirectoryInterface;
 use WordPress\AiClient\Providers\Contracts\ProviderAvailabilityInterface;
-use WordPress\AiClient\Providers\Contracts\ProviderWithRequestAuthenticationInterface;
 use WordPress\AiClient\Providers\DTO\ProviderMetadata;
 use WordPress\AiClient\Providers\Enums\ProviderTypeEnum;
-use WordPress\AiClient\Providers\Http\Contracts\RequestAuthenticationInterface;
 use WordPress\AiClient\Providers\Http\Enums\RequestAuthenticationMethod;
 use WordPress\AiClient\Providers\Models\Contracts\ModelInterface;
 use WordPress\AiClient\Providers\Models\DTO\ModelMetadata;
@@ -22,7 +20,7 @@ use WordPress\AiClient\Providers\Models\DTO\ModelMetadata;
  *
  * @since n.e.x.t
  */
-class CodexProvider extends AbstractApiProvider implements ProviderWithRequestAuthenticationInterface
+class CodexProvider extends AbstractApiProvider
 {
     /**
      * {@inheritDoc}
@@ -64,7 +62,7 @@ class CodexProvider extends AbstractApiProvider implements ProviderWithRequestAu
             'ChatGPT Codex',
             ProviderTypeEnum::cloud(),
             'https://chatgpt.com',
-            RequestAuthenticationMethod::apiKey(),
+            RequestAuthenticationMethod::bearerToken(),
         ];
 
         if (version_compare(AiClient::VERSION, '1.2.0', '>=')) {
@@ -86,17 +84,6 @@ class CodexProvider extends AbstractApiProvider implements ProviderWithRequestAu
     protected static function createProviderAvailability(): ProviderAvailabilityInterface
     {
         return new CodexProviderAvailability(new CodexTokenStore());
-    }
-
-    /**
-     * {@inheritDoc}
-     *
-     * @since n.e.x.t
-     */
-    public static function requestAuthentication(): ?RequestAuthenticationInterface
-    {
-        $tokenStore = new CodexTokenStore();
-        return new CodexRequestAuthentication($tokenStore, new CodexOAuthClient($tokenStore));
     }
 
     /**
