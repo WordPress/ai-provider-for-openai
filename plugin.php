@@ -52,3 +52,48 @@ function register_provider(): void
 }
 
 add_action('init', __NAMESPACE__ . '\\register_provider', 5);
+
+/**
+ * Returns generic provider profile metadata for runtime consumers.
+ *
+ * @since 1.0.4
+ *
+ * @return array<string, mixed> Provider profile metadata.
+ */
+function provider_profile(): array
+{
+    return [
+        'schema' => 'ai-provider/profile/v1',
+        'provider' => 'openai',
+        'name' => 'OpenAI',
+        'base_url' => 'https://api.openai.com/v1',
+        'authentication' => [
+            'type' => 'api_key',
+            'env' => 'OPENAI_API_KEY',
+        ],
+        'plugin_source' => [
+            'type' => 'wordpress-plugin',
+            'slug' => 'ai-provider-for-openai',
+            'path' => __DIR__,
+            'repository' => 'https://github.com/WordPress/ai-provider-for-openai',
+            'composer_package' => 'wordpress/ai-provider-for-openai',
+        ],
+    ];
+}
+
+/**
+ * Registers OpenAI in a generic provider profile registry.
+ *
+ * @since 1.0.4
+ *
+ * @param array<string, mixed> $profiles Provider profiles keyed by provider ID.
+ * @return array<string, mixed> Provider profiles.
+ */
+function register_provider_profile(array $profiles): array
+{
+    $profiles['openai'] = provider_profile();
+
+    return $profiles;
+}
+
+add_filter('ai_provider_profiles', __NAMESPACE__ . '\\register_provider_profile');
