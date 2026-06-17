@@ -145,7 +145,10 @@ class CodexOAuthClient
         $isWpError = 'is_wp_error';
         // @phpstan-ignore-next-line WordPress error helper is available at runtime when function_exists() passes.
         if (function_exists('is_wp_error') && $isWpError($response)) {
-            throw new RuntimeException('Codex OAuth refresh failed.');
+            $message = is_object($response) && method_exists($response, 'get_error_message')
+                ? $response->get_error_message()
+                : 'WordPress HTTP API error';
+            throw new RuntimeException('Codex OAuth refresh failed: ' . $this->sanitizeErrorPreview($message));
         }
 
         $wpRemoteRetrieveResponseCode = 'wp_remote_retrieve_response_code';
@@ -155,10 +158,6 @@ class CodexOAuthClient
             $rawStatusCode = $wpRemoteRetrieveResponseCode($response);
         }
         $statusCode = is_numeric($rawStatusCode) ? (int) $rawStatusCode : 0;
-        if ($statusCode < 200 || $statusCode >= 300) {
-            throw new RuntimeException('Codex OAuth refresh failed.');
-        }
-
         $wpRemoteRetrieveBody = 'wp_remote_retrieve_body';
         $rawResponseBody = '';
         if (function_exists('wp_remote_retrieve_body')) {
@@ -166,9 +165,21 @@ class CodexOAuthClient
             $rawResponseBody = $wpRemoteRetrieveBody($response);
         }
         $responseBody = is_scalar($rawResponseBody) ? (string) $rawResponseBody : '';
+        if ($statusCode < 200 || $statusCode >= 300) {
+            throw new RuntimeException(
+                sprintf(
+                    'Codex OAuth refresh failed with HTTP %d: %s',
+                    $statusCode,
+                    $this->sanitizeErrorPreview($responseBody)
+                )
+            );
+        }
+
         $data = json_decode($responseBody, true);
         if (!is_array($data)) {
-            throw new RuntimeException('Codex OAuth refresh returned an invalid response.');
+            throw new RuntimeException(
+                'Codex OAuth refresh returned an invalid response: ' . $this->sanitizeErrorPreview($responseBody)
+            );
         }
 
         /** @var array<string, mixed> $data */
@@ -191,5 +202,28 @@ class CodexOAuthClient
         }
 
         return (int) $value;
+    }
+
+    /**
+     * Builds a bounded single-line OAuth error preview without exposing token material.
+     *
+     * @since n.e.x.t
+     *
+     * @param string $message Raw error message or body.
+     * @return string Sanitized preview.
+     */
+    private function sanitizeErrorPreview(string $message): string
+    {
+        $message = preg_replace('/\s+/', ' ', $message);
+        $message = is_string($message) ? trim($message) : '';
+        if ($message === '') {
+            return 'empty response';
+        }
+
+        if (strlen($message) > 500) {
+            $message = substr($message, 0, 500) . '...';
+        }
+
+        return $message;
     }
 }

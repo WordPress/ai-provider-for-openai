@@ -62,7 +62,7 @@ class CodexProvider extends AbstractApiProvider
             'ChatGPT Codex',
             ProviderTypeEnum::cloud(),
             'https://chatgpt.com',
-            RequestAuthenticationMethod::bearerToken(),
+            RequestAuthenticationMethod::apiKey(),
         ];
 
         if (version_compare(AiClient::VERSION, '1.2.0', '>=')) {
