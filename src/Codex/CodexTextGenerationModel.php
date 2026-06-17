@@ -129,6 +129,10 @@ class CodexTextGenerationModel extends AbstractApiBasedModel implements TextGene
         curl_setopt($curl, CURLOPT_RETURNTRANSFER, false);
         curl_setopt($curl, CURLOPT_HEADER, false);
         curl_setopt($curl, CURLOPT_FOLLOWLOCATION, false);
+        $caBundlePath = $this->getWordPressCaBundlePath();
+        if ($caBundlePath !== null) {
+            curl_setopt($curl, CURLOPT_CAINFO, $caBundlePath);
+        }
         curl_setopt(
             $curl,
             CURLOPT_WRITEFUNCTION,
@@ -196,6 +200,25 @@ class CodexTextGenerationModel extends AbstractApiBasedModel implements TextGene
         }
 
         return new Response($statusCode, $responseHeaders, $responseBody === '' ? null : $responseBody);
+    }
+
+    /**
+     * Gets WordPress' bundled certificate authority file for sandboxed cURL runtimes.
+     *
+     * @since n.e.x.t
+     *
+     * @return string|null CA bundle path when available.
+     */
+    private function getWordPressCaBundlePath(): ?string
+    {
+        if (!defined('ABSPATH')) {
+            return null;
+        }
+
+        $wpIncludes = defined('WPINC') ? WPINC : 'wp-includes';
+        $path = rtrim((string) ABSPATH, '/\\') . '/' . $wpIncludes . '/certificates/ca-bundle.crt';
+
+        return is_readable($path) ? $path : null;
     }
 
     /**
