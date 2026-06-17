@@ -52,3 +52,29 @@ function register_provider(): void
 }
 
 add_action('init', __NAMESPACE__ . '\\register_provider', 5);
+
+/**
+ * Supplies OpenAI defaults for Data Machine's image generation capability.
+ *
+ * @since n.e.x.t
+ *
+ * @param array<string, mixed> $defaults Existing capability defaults.
+ * @param string              $capability Capability identifier.
+ * @return array<string, mixed> Filtered capability defaults.
+ */
+function filter_datamachine_ai_capability_defaults(array $defaults, string $capability): array
+{
+    if ($capability !== 'image_generation') {
+        return $defaults;
+    }
+
+    return array_merge(
+        $defaults,
+        [
+            'provider' => 'openai',
+            'model' => 'gpt-image-1',
+        ]
+    );
+}
+
+add_filter('datamachine_ai_capability_defaults', __NAMESPACE__ . '\\filter_datamachine_ai_capability_defaults', 10, 2);
