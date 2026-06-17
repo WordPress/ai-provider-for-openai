@@ -50,7 +50,10 @@ class CodexTextGenerationModel extends AbstractApiBasedModel implements TextGene
         );
 
         $request = $this->getRequestAuthentication()->authenticateRequest($request);
-        $response = $this->getHttpTransporter()->send($request);
+        $response = $this->shouldUseNativeCodexStreaming()
+            ? $this->sendStreamingCodexRequest($request)
+            : $this->getHttpTransporter()->send($request);
+        $this->throwIfCodexResponseFailed($response);
         ResponseUtil::throwIfNotSuccessful($response);
 
         return $this->parseResponseToResult($response);
@@ -75,6 +78,124 @@ class CodexTextGenerationModel extends AbstractApiBasedModel implements TextGene
         }
 
         return $options;
+    }
+
+    /**
+     * Whether Codex should bypass the buffered php-ai-client transport for SSE.
+     *
+     * @since n.e.x.t
+     *
+     * @return bool True when native WordPress/runtime cURL streaming is available.
+     */
+    private function shouldUseNativeCodexStreaming(): bool
+    {
+        return defined('ABSPATH') && function_exists('curl_init');
+    }
+
+    /**
+     * Sends a Codex request with cURL so required SSE responses are consumed incrementally.
+     *
+     * @since n.e.x.t
+     *
+     * @param Request $request Authenticated Codex HTTP request.
+     * @return Response Buffered response containing the SSE frames received.
+     *
+     * @throws ResponseException When the cURL request fails before a Codex response is available.
+     */
+    private function sendStreamingCodexRequest(Request $request): Response
+    {
+        $curl = curl_init($request->getUri());
+        if (!is_resource($curl) && !($curl instanceof \CurlHandle)) {
+            throw new ResponseException('Unable to initialize ChatGPT Codex streaming request.');
+        }
+
+        $body = $request->getBody();
+        $headers = [];
+        foreach ($request->getHeaders() as $name => $values) {
+            foreach ($values as $value) {
+                $headers[] = $name . ': ' . $value;
+            }
+        }
+
+        /** @var array<string, list<string>> $responseHeaders */
+        $responseHeaders = [];
+        $responseBody = '';
+        $receivedDone = false;
+        $options = $request->getOptions() ?: $this->getCodexRequestOptions();
+
+        curl_setopt($curl, CURLOPT_CUSTOMREQUEST, $request->getMethod()->value);
+        curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($curl, CURLOPT_POSTFIELDS, $body === null ? '' : $body);
+        curl_setopt($curl, CURLOPT_RETURNTRANSFER, false);
+        curl_setopt($curl, CURLOPT_HEADER, false);
+        curl_setopt($curl, CURLOPT_FOLLOWLOCATION, false);
+        curl_setopt(
+            $curl,
+            CURLOPT_WRITEFUNCTION,
+            static function ($curlHandle, string $chunk) use (&$responseBody, &$receivedDone): int {
+                $responseBody .= $chunk;
+                if (strpos($responseBody, 'data: [DONE]') !== false) {
+                    $receivedDone = true;
+                    return 0;
+                }
+
+                return strlen($chunk);
+            }
+        );
+        curl_setopt(
+            $curl,
+            CURLOPT_HEADERFUNCTION,
+            static function ($curlHandle, string $headerLine) use (&$responseHeaders): int {
+                $trimmed = trim($headerLine);
+                if ($trimmed === '') {
+                    return strlen($headerLine);
+                }
+                if (stripos($trimmed, 'HTTP/') === 0) {
+                    $responseHeaders = [];
+                    return strlen($headerLine);
+                }
+
+                $separator = strpos($trimmed, ':');
+                if ($separator === false) {
+                    return strlen($headerLine);
+                }
+
+                $name = substr($trimmed, 0, $separator);
+                $value = trim(substr($trimmed, $separator + 1));
+                if ($name !== '') {
+                    $responseHeaders[$name][] = $value;
+                }
+
+                return strlen($headerLine);
+            }
+        );
+
+        $timeout = $options->getTimeout();
+        if ($timeout !== null) {
+            curl_setopt($curl, CURLOPT_TIMEOUT, (int) ceil($timeout));
+        }
+        $connectTimeout = $options->getConnectTimeout();
+        if ($connectTimeout !== null) {
+            curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, (int) ceil($connectTimeout));
+        }
+
+        $success = curl_exec($curl);
+        $errno = curl_errno($curl);
+        $error = curl_error($curl);
+        $statusCode = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+        curl_close($curl); // phpcs:ignore PHPCompatibility.FunctionUse.RemovedFunctions.curl_closeDeprecated
+
+        if ($success === false && !$receivedDone) {
+            throw new ResponseException(
+                sprintf('ChatGPT Codex streaming request failed: cURL error %d: %s', $errno, $error)
+            );
+        }
+
+        if ($statusCode < 100 || $statusCode >= 600) {
+            throw new ResponseException('ChatGPT Codex streaming request did not return a valid HTTP response.');
+        }
+
+        return new Response($statusCode, $responseHeaders, $responseBody === '' ? null : $responseBody);
     }
 
     /**
@@ -360,6 +481,11 @@ class CodexTextGenerationModel extends AbstractApiBasedModel implements TextGene
         }
 
         if (empty($candidates)) {
+            $failureMessage = $this->responseFailureMessage($data);
+            if ($failureMessage !== null) {
+                throw new ResponseException('Unexpected ChatGPT Codex API response: ' . $failureMessage);
+            }
+
             throw ResponseException::fromMissingData('ChatGPT Codex', 'output');
         }
 
@@ -541,7 +667,40 @@ class CodexTextGenerationModel extends AbstractApiBasedModel implements TextGene
             $text .= $data['delta'];
         }
 
-        if (isset($data['response']) && is_array($data['response']) && $type === 'response.completed') {
+        if (
+            isset($data['text']) &&
+            is_string($data['text']) &&
+            $data['text'] !== '' &&
+            in_array($type, ['response.output_text.done', 'response.output_text.added'], true)
+        ) {
+            $text .= $data['text'];
+        }
+
+        if (
+            isset($data['part']) &&
+            is_array($data['part']) &&
+            in_array($type, ['response.content_part.done', 'response.content_part.added'], true)
+        ) {
+            $part = $data['part'];
+            if (
+                in_array(($part['type'] ?? ''), ['output_text', 'text'], true) &&
+                isset($part['text']) &&
+                is_string($part['text']) &&
+                $part['text'] !== ''
+            ) {
+                $text .= $part['text'];
+            }
+        }
+
+        if (
+            isset($data['response']) &&
+            is_array($data['response']) &&
+            in_array(
+                $type,
+                ['response.completed', 'response.failed', 'response.incomplete', 'response.cancelled'],
+                true
+            )
+        ) {
             /** @var array<string, mixed> $response */
             $response = $data['response'];
             $completed = $response;
@@ -573,5 +732,137 @@ class CodexTextGenerationModel extends AbstractApiBasedModel implements TextGene
         }
 
         return (int) $value;
+    }
+
+    /**
+     * Throws a Codex-specific error that preserves bounded response details.
+     *
+     * @since n.e.x.t
+     *
+     * @param Response $response HTTP response.
+     * @return void
+     *
+     * @throws ResponseException When the HTTP response is not successful.
+     */
+    private function throwIfCodexResponseFailed(Response $response): void
+    {
+        if ($response->isSuccessful()) {
+            return;
+        }
+
+        $message = sprintf('HTTP %d', $response->getStatusCode());
+        $data = $response->getData();
+        if (is_array($data)) {
+            $failureMessage = $this->responseFailureMessage($data);
+            if ($failureMessage !== null) {
+                $message .= ': ' . $failureMessage;
+            }
+        }
+
+        $bodyPreview = $this->responseBodyPreview($response);
+        if ($bodyPreview !== '') {
+            $message .= ': ' . $bodyPreview;
+        }
+
+        throw new ResponseException('Unexpected ChatGPT Codex API response: ' . $message);
+    }
+
+    /**
+     * Builds a bounded single-line response body preview for diagnostics.
+     *
+     * @since n.e.x.t
+     *
+     * @param Response $response HTTP response.
+     * @return string Sanitized body preview, or empty string.
+     */
+    private function responseBodyPreview(Response $response): string
+    {
+        $body = (string) $response->getBody();
+        if ($body === '') {
+            return '';
+        }
+
+        $body = preg_replace('/\s+/', ' ', $body);
+        $body = is_string($body) ? trim($body) : '';
+        if ($body === '') {
+            return '';
+        }
+
+        if (strlen($body) > 500) {
+            $body = substr($body, 0, 500) . '...';
+        }
+
+        return $body;
+    }
+
+    /**
+     * Builds a useful failure message from a terminal Codex Responses payload.
+     *
+     * @since n.e.x.t
+     *
+     * @param array<string, mixed> $data Parsed response data.
+     * @return string|null Failure message, or null when the payload is not a failure.
+     */
+    private function responseFailureMessage(array $data): ?string
+    {
+        $error = $this->responseErrorData($data['error'] ?? null);
+        if ($error !== null) {
+            return $error;
+        }
+
+        $error = $this->responseErrorData($data['last_error'] ?? null);
+        if ($error !== null) {
+            return $error;
+        }
+
+        $status = isset($data['status']) && is_scalar($data['status']) ? (string) $data['status'] : '';
+        if (!in_array($status, ['failed', 'incomplete', 'cancelled'], true)) {
+            return null;
+        }
+
+        $details = [];
+        if (isset($data['incomplete_details']) && is_array($data['incomplete_details'])) {
+            foreach (['reason', 'message'] as $field) {
+                if (isset($data['incomplete_details'][$field]) && is_scalar($data['incomplete_details'][$field])) {
+                    $details[] = (string) $data['incomplete_details'][$field];
+                }
+            }
+        }
+
+        return sprintf(
+            'Response finished with status "%s"%s.',
+            $status,
+            empty($details) ? '' : ': ' . implode('; ', $details)
+        );
+    }
+
+    /**
+     * Formats Codex error data without exposing the raw response body.
+     *
+     * @since n.e.x.t
+     *
+     * @param mixed $error Raw error payload.
+     * @return string|null Error message, or null when absent.
+     */
+    private function responseErrorData($error): ?string
+    {
+        if (!is_array($error)) {
+            return null;
+        }
+
+        $message = isset($error['message']) && is_scalar($error['message']) ? (string) $error['message'] : '';
+        $code = isset($error['code']) && is_scalar($error['code']) ? (string) $error['code'] : '';
+        if ($message === '' && $code === '') {
+            return null;
+        }
+
+        if ($message === '') {
+            return sprintf('Codex error "%s".', $code);
+        }
+        if ($code === '') {
+            return $message;
+        }
+
+        return sprintf('%s (%s).', $message, $code);
     }
 }

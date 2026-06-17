@@ -8,6 +8,7 @@ use WordPress\AiClient\Providers\Http\Contracts\HttpTransporterInterface;
 use WordPress\AiClient\Providers\Http\DTO\Request;
 use WordPress\AiClient\Providers\Http\DTO\RequestOptions;
 use WordPress\AiClient\Providers\Http\DTO\Response;
+use WordPress\AiClient\Providers\Http\Exception\ResponseException;
 use WordPress\AiClient\Providers\Models\DTO\ModelConfig;
 use WordPress\AiClient\Providers\ProviderRegistry;
 use WordPress\AiClient\Tools\DTO\FunctionDeclaration;
@@ -168,6 +169,81 @@ $registry->setHttpTransporter(
                 return new Response(200, ['Content-Type' => 'text/event-stream'], $body);
             }
 
+            if (strpos($inputText, 'done text event') !== false) {
+                $body = implode(
+                    "\n\n",
+                    [
+                        'data: ' . json_encode(
+                            [
+                                'type' => 'response.output_text.done',
+                                'text' => 'done text normalized',
+                            ]
+                        ),
+                        'data: ' . json_encode(
+                            ['type' => 'response.completed', 'response' => ['id' => 'resp_done_text']]
+                        ),
+                        'data: [DONE]',
+                    ]
+                );
+
+                return new Response(200, ['Content-Type' => 'text/event-stream'], $body);
+            }
+
+            if (strpos($inputText, 'content part event') !== false) {
+                $body = implode(
+                    "\n\n",
+                    [
+                        'data: ' . json_encode(
+                            [
+                                'type' => 'response.content_part.done',
+                                'part' => [
+                                    'type' => 'output_text',
+                                    'text' => 'content part normalized',
+                                ],
+                            ]
+                        ),
+                        'data: ' . json_encode(
+                            ['type' => 'response.completed', 'response' => ['id' => 'resp_content_part']]
+                        ),
+                        'data: [DONE]',
+                    ]
+                );
+
+                return new Response(200, ['Content-Type' => 'text/event-stream'], $body);
+            }
+
+            if (strpos($inputText, 'failed response') !== false) {
+                $body = implode(
+                    "\n\n",
+                    [
+                        'data: ' . json_encode(
+                            [
+                                'type' => 'response.failed',
+                                'response' => [
+                                    'id' => 'resp_failed',
+                                    'status' => 'failed',
+                                    'error' => [
+                                        'code' => 'codex_failed',
+                                        'message' => 'Codex failed while generating a response',
+                                    ],
+                                ],
+                            ]
+                        ),
+                        'data: [DONE]',
+                    ]
+                );
+
+                return new Response(200, ['Content-Type' => 'text/event-stream'], $body);
+            }
+
+            if (strpos($inputText, 'bad request body') !== false) {
+                return new Response(
+                    400,
+                    ['Content-Type' => 'text/plain'],
+                    "Codex says the request payload is invalid\n"
+                );
+            }
+
             if (isset($data['tools'])) {
                 assert(is_array($data['tools']));
                 assert(($data['tools'][0]['type'] ?? null) === 'function');
@@ -197,8 +273,16 @@ $registry->setHttpTransporter(
                     ? implode(
                         "\n\n",
                         [
-                            'data: ' . json_encode(['type' => 'response.output_item.done', 'output_index' => 0, 'item' => $response['output'][0]]),
-                            'data: ' . json_encode(['type' => 'response.completed', 'response' => ['id' => 'resp_tool_streamed']]),
+                            'data: ' . json_encode(
+                                [
+                                    'type' => 'response.output_item.done',
+                                    'output_index' => 0,
+                                    'item' => $response['output'][0],
+                                ]
+                            ),
+                            'data: ' . json_encode(
+                                ['type' => 'response.completed', 'response' => ['id' => 'resp_tool_streamed']]
+                            ),
                             'data: [DONE]',
                         ]
                     )
@@ -294,6 +378,38 @@ $textItemResult = $model->generateTextResult([new UserMessage([new MessagePart('
 assert($textItemResult->toText() === 'completed text normalized');
 
 echo "Codex completed text item smoke passed.\n";
+
+$doneTextResult = $model->generateTextResult([new UserMessage([new MessagePart('done text event')])]);
+assert($doneTextResult->toText() === 'done text normalized');
+
+echo "Codex done text event smoke passed.\n";
+
+$contentPartResult = $model->generateTextResult([new UserMessage([new MessagePart('content part event')])]);
+assert($contentPartResult->toText() === 'content part normalized');
+
+echo "Codex content part event smoke passed.\n";
+
+$failedResponseMessage = '';
+try {
+    $model->generateTextResult([new UserMessage([new MessagePart('failed response')])]);
+} catch (ResponseException $exception) {
+    $failedResponseMessage = $exception->getMessage();
+}
+assert(strpos($failedResponseMessage, 'Codex failed while generating a response') !== false);
+assert(strpos($failedResponseMessage, 'codex_failed') !== false);
+
+echo "Codex failed response smoke passed.\n";
+
+$badRequestMessage = '';
+try {
+    $model->generateTextResult([new UserMessage([new MessagePart('bad request body')])]);
+} catch (ResponseException $exception) {
+    $badRequestMessage = $exception->getMessage();
+}
+assert(strpos($badRequestMessage, 'HTTP 400') !== false);
+assert(strpos($badRequestMessage, 'Codex says the request payload is invalid') !== false);
+
+echo "Codex bad request body smoke passed.\n";
 
 $streamedToolResult = $model->generateTextResult([new UserMessage([new MessagePart('streamed tool item')])]);
 $streamedToolCall = $streamedToolResult->getCandidates()[0]->getMessage()->getParts()[0]->getFunctionCall();

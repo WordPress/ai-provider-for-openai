@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace WordPress\OpenAiAiProvider\Codex;
 
-use WordPress\AiClient\Providers\Http\Contracts\RequestAuthenticationInterface;
-use WordPress\AiClient\Providers\Http\DTO\BearerTokenRequestAuthentication;
+use WordPress\AiClient\Providers\Http\DTO\ApiKeyRequestAuthentication;
 use WordPress\AiClient\Providers\Http\DTO\Request;
 
 /**
@@ -13,7 +12,7 @@ use WordPress\AiClient\Providers\Http\DTO\Request;
  *
  * @since n.e.x.t
  */
-class CodexRequestAuthentication extends BearerTokenRequestAuthentication implements RequestAuthenticationInterface
+class CodexRequestAuthentication extends ApiKeyRequestAuthentication
 {
     /**
      * @var CodexTokenStore Token store.
