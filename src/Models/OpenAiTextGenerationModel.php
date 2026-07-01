@@ -6,6 +6,7 @@ namespace WordPress\OpenAiAiProvider\Models;
 
 use WordPress\AiClient\Common\Exception\InvalidArgumentException;
 use WordPress\AiClient\Common\Exception\RuntimeException;
+use WordPress\AiClient\Common\Exception\TokenLimitReachedException;
 use WordPress\AiClient\Messages\DTO\Message;
 use WordPress\AiClient\Messages\DTO\MessagePart;
 use WordPress\AiClient\Messages\Enums\MessagePartChannelEnum;
@@ -50,12 +51,14 @@ use WordPress\OpenAiAiProvider\Provider\OpenAiProvider;
  *     output_tokens?: int,
  *     total_tokens?: int
  * }
+ * @phpstan-type IncompleteDetailsData array{reason?: string}
  * @phpstan-type ResponseData array{
  *     id?: string,
  *     status?: string,
  *     output?: list<OutputItemData>,
  *     output_text?: string,
- *     usage?: UsageData
+ *     usage?: UsageData,
+ *     incomplete_details?: IncompleteDetailsData|null
  * }
  */
 class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGenerationModelInterface
@@ -498,6 +501,25 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
     {
         /** @var ResponseData $responseData */
         $responseData = $response->getData();
+
+        // Check for token limit before processing output. When max_output_tokens is reached, OpenAI returns
+        // status 'incomplete' with incomplete_details.reason 'max_output_tokens'. The output array may be
+        // empty in this case, so this check must happen before the output validation below.
+        $status = $responseData['status'] ?? 'completed';
+        if ($status === 'incomplete') {
+            $incompleteDetails = $responseData['incomplete_details'] ?? null;
+            $reason = is_array($incompleteDetails) ? ($incompleteDetails['reason'] ?? '') : '';
+            if ($reason === 'max_output_tokens') {
+                $maxTokens = $this->getConfig()->getMaxTokens();
+                throw new TokenLimitReachedException(
+                    sprintf(
+                        'Generation stopped due to token limit with reason "%s".',
+                        $reason
+                    ),
+                    $maxTokens
+                );
+            }
+        }
 
         if (!isset($responseData['output']) || !$responseData['output']) {
             throw ResponseException::fromMissingData($this->providerMetadata()->getName(), 'output');
