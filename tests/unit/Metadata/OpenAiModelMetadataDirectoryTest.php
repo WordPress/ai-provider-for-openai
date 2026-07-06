@@ -47,7 +47,7 @@ class OpenAiModelMetadataDirectoryTest extends TestCase
 
         $this->assertTrue($capabilities[0]->isEmbeddingGeneration());
         $this->assertTrue($options[0]->getName()->isInputModalities());
-        $this->assertTrue($options[1]->getName()->isEmbeddingDimensions());
+        $this->assertTrue($options[1]->getName()->isDimensions());
         $this->assertTrue($options[2]->getName()->isCustomOptions());
     }
 }
