@@ -134,7 +134,6 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
         ];
         $embeddingOptions = [
             new SupportedOption(OptionEnum::inputModalities(), [[ModalityEnum::text()]]),
-            new SupportedOption(OptionEnum::dimensions()),
             new SupportedOption(OptionEnum::customOptions()),
         ];
         $dalleImageOptions = [
