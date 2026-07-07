@@ -33,6 +33,9 @@ class OpenAiEmbeddingGenerationModel extends AbstractApiBasedModel implements Em
      * {@inheritDoc}
      *
      * @since n.e.x.t
+     *
+     * @param list<list<Message>> $input The prompts to generate embeddings for, one message list per prompt.
+     * @return EmbeddingResult The embedding result.
      */
     public function generateEmbeddingResult(array $input): EmbeddingResult
     {
