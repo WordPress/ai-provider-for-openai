@@ -145,9 +145,10 @@ class CodexOAuthClient
         $isWpError = 'is_wp_error';
         // @phpstan-ignore-next-line WordPress error helper is available at runtime when function_exists() passes.
         if (function_exists('is_wp_error') && $isWpError($response)) {
-            $message = is_object($response) && method_exists($response, 'get_error_message')
+            $rawMessage = is_object($response) && method_exists($response, 'get_error_message')
                 ? $response->get_error_message()
                 : 'WordPress HTTP API error';
+            $message = is_scalar($rawMessage) ? (string) $rawMessage : 'WordPress HTTP API error';
             throw new RuntimeException('Codex OAuth refresh failed: ' . $this->sanitizeErrorPreview($message));
         }
 

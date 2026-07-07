@@ -105,11 +105,11 @@ class CodexTextGenerationModel extends AbstractApiBasedModel implements TextGene
     private function sendStreamingCodexRequest(Request $request): Response
     {
         $curl = curl_init($request->getUri());
-        if (!is_resource($curl) && !($curl instanceof \CurlHandle)) {
+        if ($curl === false) {
             throw new ResponseException('Unable to initialize ChatGPT Codex streaming request.');
         }
 
-        $body = $request->getBody();
+        $body = (string) ($request->getBody() ?? '');
         $headers = [];
         foreach ($request->getHeaders() as $name => $values) {
             foreach ($values as $value) {
@@ -123,14 +123,15 @@ class CodexTextGenerationModel extends AbstractApiBasedModel implements TextGene
         $receivedDone = false;
         $options = $request->getOptions() ?: $this->getCodexRequestOptions();
 
-        curl_setopt($curl, CURLOPT_CUSTOMREQUEST, $request->getMethod()->value);
+        $method = $request->getMethod()->value ?: 'POST';
+        curl_setopt($curl, CURLOPT_CUSTOMREQUEST, $method);
         curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
-        curl_setopt($curl, CURLOPT_POSTFIELDS, $body === null ? '' : $body);
+        curl_setopt($curl, CURLOPT_POSTFIELDS, $body);
         curl_setopt($curl, CURLOPT_RETURNTRANSFER, false);
         curl_setopt($curl, CURLOPT_HEADER, false);
         curl_setopt($curl, CURLOPT_FOLLOWLOCATION, false);
         $caBundlePath = $this->getWordPressCaBundlePath();
-        if ($caBundlePath !== null) {
+        if ($caBundlePath !== null && $caBundlePath !== '') {
             curl_setopt($curl, CURLOPT_CAINFO, $caBundlePath);
         }
         curl_setopt(
@@ -199,7 +200,14 @@ class CodexTextGenerationModel extends AbstractApiBasedModel implements TextGene
             throw new ResponseException('ChatGPT Codex streaming request did not return a valid HTTP response.');
         }
 
-        return new Response($statusCode, $responseHeaders, $responseBody === '' ? null : $responseBody);
+        $headers = [];
+        foreach ($responseHeaders as $name => $values) {
+            if (is_string($name)) {
+                $headers[$name] = $values;
+            }
+        }
+
+        return new Response($statusCode, $headers, $responseBody === '' ? null : $responseBody);
     }
 
     /**
@@ -215,8 +223,11 @@ class CodexTextGenerationModel extends AbstractApiBasedModel implements TextGene
             return null;
         }
 
-        $wpIncludes = defined('WPINC') ? WPINC : 'wp-includes';
-        $path = rtrim((string) ABSPATH, '/\\') . '/' . $wpIncludes . '/certificates/ca-bundle.crt';
+        $rawAbspath = constant('ABSPATH');
+        $rawWpIncludes = defined('WPINC') ? constant('WPINC') : 'wp-includes';
+        $abspath = is_scalar($rawAbspath) ? (string) $rawAbspath : '';
+        $wpIncludes = is_scalar($rawWpIncludes) ? (string) $rawWpIncludes : 'wp-includes';
+        $path = rtrim($abspath, '/\\') . '/' . $wpIncludes . '/certificates/ca-bundle.crt';
 
         return is_readable($path) ? $path : null;
     }
