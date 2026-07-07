@@ -34,7 +34,7 @@ class OpenAiEmbeddingGenerationModel extends AbstractApiBasedModel implements Em
      *
      * @since n.e.x.t
      */
-    public function generateEmbeddingsResult(array $input): EmbeddingResult
+    public function generateEmbeddingResult(array $input): EmbeddingResult
     {
         $params = $this->prepareGenerateEmbeddingsParams($input);
 
