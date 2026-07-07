@@ -58,28 +58,33 @@ class OpenAiEmbeddingGenerationModel extends AbstractApiBasedModel implements Em
      *
      * @since n.e.x.t
      *
-     * @param list<Message> $input The input messages to generate embeddings for.
+     * @param list<list<Message>> $input The prompts to generate embeddings for, one message list per prompt.
      * @return array<string, mixed> The parameters for the API request.
      */
     protected function prepareGenerateEmbeddingsParams(array $input): array
     {
         if (!array_is_list($input)) {
-            throw new InvalidArgumentException('Embedding input must be provided as a list of messages.');
+            throw new InvalidArgumentException('Embedding input must be provided as a list of prompts.');
         }
 
         if (empty($input)) {
-            throw new InvalidArgumentException('The API requires at least one input message.');
+            throw new InvalidArgumentException('The API requires at least one prompt.');
         }
 
         $preparedInput = [];
-        foreach ($input as $message) {
-            $preparedInput[] = $this->prepareMessageInput($message);
+        foreach ($input as $messages) {
+            $preparedInput[] = $this->preparePromptInput($messages);
         }
 
         $params = [
             'model' => $this->metadata()->getId(),
             'input' => $preparedInput,
         ];
+
+        $dimensions = $this->getConfig()->getDimensions();
+        if ($dimensions !== null) {
+            $params['dimensions'] = $dimensions;
+        }
 
         foreach ($this->getConfig()->getCustomOptions() as $key => $value) {
             if (isset($params[$key])) {
@@ -97,7 +102,29 @@ class OpenAiEmbeddingGenerationModel extends AbstractApiBasedModel implements Em
     }
 
     /**
-     * Prepares a single prompt for the OpenAI embeddings input parameter.
+     * Prepares a single prompt (a list of messages) into one embeddings input string.
+     *
+     * @since n.e.x.t
+     *
+     * @param list<Message> $messages The messages that make up one embedding input.
+     * @return string The prompt text.
+     */
+    protected function preparePromptInput(array $messages): string
+    {
+        if (!array_is_list($messages) || empty($messages)) {
+            throw new InvalidArgumentException('Each embedding prompt must be a non-empty list of messages.');
+        }
+
+        $textParts = [];
+        foreach ($messages as $message) {
+            $textParts[] = $this->prepareMessageInput($message);
+        }
+
+        return implode("\n", $textParts);
+    }
+
+    /**
+     * Prepares a single message for the embeddings input parameter.
      *
      * @since n.e.x.t
      *
@@ -203,6 +230,7 @@ class OpenAiEmbeddingGenerationModel extends AbstractApiBasedModel implements Em
         return new EmbeddingResult(
             isset($responseData['id']) && is_string($responseData['id']) ? $responseData['id'] : '',
             $embeddings,
+            count($embeddings[0]->getValues()),
             $tokenUsage,
             $this->providerMetadata(),
             $this->metadata(),
