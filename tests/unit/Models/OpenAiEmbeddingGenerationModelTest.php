@@ -37,7 +37,7 @@ class OpenAiEmbeddingGenerationModelTest extends TestCase
 
         $model->setConfig(ModelConfig::fromArray(['customOptions' => ['dimensions' => 3]]));
         $params = $model->exposePrepareGenerateEmbeddingsParams([
-            new Message(MessageRoleEnum::user(), [new MessagePart('Search text')]),
+            [new Message(MessageRoleEnum::user(), [new MessagePart('Search text')])],
         ]);
 
         $this->assertEquals('text-embedding-3-small', $params['model']);
@@ -58,8 +58,8 @@ class OpenAiEmbeddingGenerationModelTest extends TestCase
         };
 
         $params = $model->exposePrepareGenerateEmbeddingsParams([
-            new Message(MessageRoleEnum::user(), [new MessagePart('First')]),
-            new Message(MessageRoleEnum::user(), [new MessagePart('Second')]),
+            [new Message(MessageRoleEnum::user(), [new MessagePart('First')])],
+            [new Message(MessageRoleEnum::user(), [new MessagePart('Second')])],
         ]);
 
         $this->assertEquals(['First', 'Second'], $params['input']);
@@ -100,12 +100,12 @@ class OpenAiEmbeddingGenerationModelTest extends TestCase
         $model->setHttpTransporter($httpTransporter);
         $model->setRequestAuthentication($requestAuthentication);
 
-        $result = $model->generateEmbeddingsResult([
-            new Message(MessageRoleEnum::user(), [new MessagePart('Search text')]),
+        $result = $model->generateEmbeddingResult([
+            [new Message(MessageRoleEnum::user(), [new MessagePart('Search text')])],
         ]);
 
         $this->assertEquals('emb-openai-123', $result->getId());
-        $this->assertEquals([0.1, 0.2, 0.3], $result->getEmbeddings()[0]->getVector());
+        $this->assertEquals([0.1, 0.2, 0.3], $result->getEmbeddings()[0]->getValues());
         $this->assertEquals(2, $result->getTokenUsage()->getPromptTokens());
     }
 
