@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace WordPress\OpenAiAiProvider\Models;
 
 use WordPress\AiClient\Common\Exception\InvalidArgumentException;
-use WordPress\AiClient\Messages\DTO\Message;
 use WordPress\AiClient\Providers\ApiBasedImplementation\AbstractApiBasedModel;
 use WordPress\AiClient\Providers\Http\DTO\Request;
 use WordPress\AiClient\Providers\Http\DTO\Response;
@@ -34,7 +33,7 @@ class OpenAiEmbeddingGenerationModel extends AbstractApiBasedModel implements Em
      *
      * @since n.e.x.t
      *
-     * @param list<list<Message>> $input The prompts to generate embeddings for, one message list per prompt.
+     * @param list<string> $input The text inputs to generate embeddings for.
      * @return EmbeddingResult The embedding result.
      */
     public function generateEmbeddingResult(array $input): EmbeddingResult
@@ -61,7 +60,7 @@ class OpenAiEmbeddingGenerationModel extends AbstractApiBasedModel implements Em
      *
      * @since n.e.x.t
      *
-     * @param list<list<Message>> $input The prompts to generate embeddings for, one message list per prompt.
+     * @param list<string> $input The text inputs to generate embeddings for.
      * @return array<string, mixed> The parameters for the API request.
      */
     protected function prepareGenerateEmbeddingsParams(array $input): array
@@ -74,14 +73,15 @@ class OpenAiEmbeddingGenerationModel extends AbstractApiBasedModel implements Em
             throw new InvalidArgumentException('The API requires at least one prompt.');
         }
 
-        $preparedInput = [];
-        foreach ($input as $messages) {
-            $preparedInput[] = $this->preparePromptInput($messages);
+        foreach ($input as $value) {
+            if (!is_string($value) || trim($value) === '') {
+                throw new InvalidArgumentException('Embedding input must contain only non-empty strings.');
+            }
         }
 
         $params = [
             'model' => $this->metadata()->getId(),
-            'input' => $preparedInput,
+            'input' => $input,
         ];
 
         $dimensions = $this->getConfig()->getDimensions();
@@ -102,53 +102,6 @@ class OpenAiEmbeddingGenerationModel extends AbstractApiBasedModel implements Em
         }
 
         return $params;
-    }
-
-    /**
-     * Prepares a single prompt (a list of messages) into one embeddings input string.
-     *
-     * @since n.e.x.t
-     *
-     * @param list<Message> $messages The messages that make up one embedding input.
-     * @return string The prompt text.
-     */
-    protected function preparePromptInput(array $messages): string
-    {
-        if (!array_is_list($messages) || empty($messages)) {
-            throw new InvalidArgumentException('Each embedding prompt must be a non-empty list of messages.');
-        }
-
-        $textParts = [];
-        foreach ($messages as $message) {
-            $textParts[] = $this->prepareMessageInput($message);
-        }
-
-        return implode("\n", $textParts);
-    }
-
-    /**
-     * Prepares a single message for the embeddings input parameter.
-     *
-     * @since n.e.x.t
-     *
-     * @param Message $message The message for one embedding input.
-     * @return string The prompt text.
-     */
-    protected function prepareMessageInput(Message $message): string
-    {
-        $textParts = [];
-        foreach ($message->getParts() as $part) {
-            $text = $part->getText();
-            if ($text !== null) {
-                $textParts[] = $text;
-            }
-        }
-
-        if (empty($textParts)) {
-            throw new InvalidArgumentException('The API requires text content to generate embeddings.');
-        }
-
-        return implode("\n", $textParts);
     }
 
     /**

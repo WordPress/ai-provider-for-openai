@@ -5,13 +5,12 @@ declare(strict_types=1);
 namespace WordPress\OpenAiAiProvider\Tests\unit\Models;
 
 use PHPUnit\Framework\TestCase;
-use WordPress\AiClient\Messages\DTO\Message;
-use WordPress\AiClient\Messages\DTO\MessagePart;
-use WordPress\AiClient\Messages\Enums\MessageRoleEnum;
+use WordPress\AiClient\Common\Exception\InvalidArgumentException;
 use WordPress\AiClient\Providers\DTO\ProviderMetadata;
 use WordPress\AiClient\Providers\Enums\ProviderTypeEnum;
 use WordPress\AiClient\Providers\Http\Contracts\HttpTransporterInterface;
 use WordPress\AiClient\Providers\Http\Contracts\RequestAuthenticationInterface;
+use WordPress\AiClient\Providers\Http\DTO\Request;
 use WordPress\AiClient\Providers\Http\DTO\Response;
 use WordPress\AiClient\Providers\Models\DTO\ModelConfig;
 use WordPress\AiClient\Providers\Models\DTO\ModelMetadata;
@@ -36,9 +35,7 @@ class OpenAiEmbeddingGenerationModelTest extends TestCase
         };
 
         $model->setConfig(ModelConfig::fromArray(['customOptions' => ['dimensions' => 3]]));
-        $params = $model->exposePrepareGenerateEmbeddingsParams([
-            [new Message(MessageRoleEnum::user(), [new MessagePart('Search text')])],
-        ]);
+        $params = $model->exposePrepareGenerateEmbeddingsParams(['Search text']);
 
         $this->assertEquals('text-embedding-3-small', $params['model']);
         $this->assertEquals(['Search text'], $params['input']);
@@ -57,15 +54,47 @@ class OpenAiEmbeddingGenerationModelTest extends TestCase
             }
         };
 
-        $params = $model->exposePrepareGenerateEmbeddingsParams([
-            [new Message(MessageRoleEnum::user(), [new MessagePart('First')])],
-            [new Message(MessageRoleEnum::user(), [new MessagePart('Second')])],
-        ]);
+        $params = $model->exposePrepareGenerateEmbeddingsParams(['First', 'Second']);
 
         $this->assertEquals(['First', 'Second'], $params['input']);
     }
 
-    public function testGenerateEmbeddingResultParsesResponse(): void
+    /**
+     * @dataProvider invalidInputs
+     *
+     * @param mixed $input The invalid embedding input.
+     */
+    public function testPrepareGenerateEmbeddingsParamsRejectsInvalidInputs($input): void
+    {
+        $model = new class(
+            $this->createModelMetadata(),
+            $this->createProviderMetadata()
+        ) extends OpenAiEmbeddingGenerationModel {
+            public function exposePrepareGenerateEmbeddingsParams(array $input): array
+            {
+                return $this->prepareGenerateEmbeddingsParams($input);
+            }
+        };
+
+        $this->expectException(InvalidArgumentException::class);
+        $model->exposePrepareGenerateEmbeddingsParams($input);
+    }
+
+    /**
+     * @return array<string, array{0: array<mixed>}>
+     */
+    public function invalidInputs(): array
+    {
+        return [
+            'empty list' => [[]],
+            'associative array' => [['first' => 'Search text']],
+            'nested list' => [[['Search text']]],
+            'integer value' => [[1]],
+            'blank string' => [['   ']],
+        ];
+    }
+
+    public function testGenerateEmbeddingResultSendsRequestAndParsesBatchResponse(): void
     {
         $model = new OpenAiEmbeddingGenerationModel(
             $this->createModelMetadata(),
@@ -82,30 +111,35 @@ class OpenAiEmbeddingGenerationModelTest extends TestCase
         $httpTransporter
             ->expects($this->once())
             ->method('send')
-            ->willReturn(new Response(
-                200,
-                [],
-                json_encode([
-                    'id' => 'emb-openai-123',
-                    'data' => [
-                        ['embedding' => [0.1, 0.2, 0.3], 'index' => 0],
-                    ],
-                    'usage' => [
-                        'prompt_tokens' => 2,
-                        'total_tokens' => 2,
-                    ],
-                ])
-            ));
+            ->willReturnCallback(function (Request $request): Response {
+                $this->assertSame('text-embedding-3-small', $request->getData()['model']);
+                $this->assertSame(['First', 'Second'], $request->getData()['input']);
+                return new Response(
+                    200,
+                    [],
+                    json_encode([
+                        'id' => 'emb-openai-123',
+                        'data' => [
+                            ['embedding' => [0.1, 0.2, 0.3], 'index' => 0],
+                            ['embedding' => [0.4, 0.5, 0.6], 'index' => 1],
+                        ],
+                        'usage' => [
+                            'prompt_tokens' => 2,
+                            'total_tokens' => 2,
+                        ],
+                    ])
+                );
+            });
 
         $model->setHttpTransporter($httpTransporter);
         $model->setRequestAuthentication($requestAuthentication);
 
-        $result = $model->generateEmbeddingResult([
-            [new Message(MessageRoleEnum::user(), [new MessagePart('Search text')])],
-        ]);
+        $result = $model->generateEmbeddingResult(['First', 'Second']);
 
         $this->assertEquals('emb-openai-123', $result->getId());
         $this->assertEquals([0.1, 0.2, 0.3], $result->getEmbeddings()[0]->getValues());
+        $this->assertEquals([0.4, 0.5, 0.6], $result->getEmbeddings()[1]->getValues());
+        $this->assertCount(2, $result->getEmbeddings());
         $this->assertEquals(2, $result->getTokenUsage()->getPromptTokens());
     }
 
