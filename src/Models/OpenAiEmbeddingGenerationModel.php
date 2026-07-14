@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace WordPress\OpenAiAiProvider\Models;
 
 use WordPress\AiClient\Common\Exception\InvalidArgumentException;
+use WordPress\AiClient\Messages\DTO\MessagePart;
 use WordPress\AiClient\Providers\ApiBasedImplementation\AbstractApiBasedModel;
 use WordPress\AiClient\Providers\Http\DTO\Request;
 use WordPress\AiClient\Providers\Http\DTO\Response;
@@ -33,7 +34,7 @@ class OpenAiEmbeddingGenerationModel extends AbstractApiBasedModel implements Em
      *
      * @since n.e.x.t
      *
-     * @param list<string> $input The text inputs to generate embeddings for.
+     * @param list<MessagePart> $input The inputs to generate embeddings for.
      * @return EmbeddingResult The embedding result.
      */
     public function generateEmbeddingResult(array $input): EmbeddingResult
@@ -60,28 +61,44 @@ class OpenAiEmbeddingGenerationModel extends AbstractApiBasedModel implements Em
      *
      * @since n.e.x.t
      *
-     * @param list<string> $input The text inputs to generate embeddings for.
+     * @param list<MessagePart> $input The inputs to generate embeddings for.
      * @return array<string, mixed> The parameters for the API request.
      */
     protected function prepareGenerateEmbeddingsParams(array $input): array
     {
         if (!array_is_list($input)) {
-            throw new InvalidArgumentException('Embedding input must be provided as a list of prompts.');
+            throw new InvalidArgumentException('Embedding input must be provided as a list of message parts.');
         }
 
         if (empty($input)) {
             throw new InvalidArgumentException('The API requires at least one prompt.');
         }
 
-        foreach ($input as $value) {
-            if (!is_string($value) || trim($value) === '') {
-                throw new InvalidArgumentException('Embedding input must contain only non-empty strings.');
+        $texts = [];
+        foreach ($input as $index => $part) {
+            if (!$part instanceof MessagePart) {
+                throw new InvalidArgumentException(
+                    sprintf('Embedding input at index %d must be a MessagePart.', $index)
+                );
             }
+            if (!$part->getType()->isText()) {
+                throw new InvalidArgumentException(
+                    sprintf('OpenAI embedding input at index %d must be a text part.', $index)
+                );
+            }
+
+            $text = $part->getText();
+            if ($text === null || trim($text) === '') {
+                throw new InvalidArgumentException(
+                    sprintf('OpenAI embedding input at index %d must contain non-empty text.', $index)
+                );
+            }
+            $texts[] = $text;
         }
 
         $params = [
             'model' => $this->metadata()->getId(),
-            'input' => $input,
+            'input' => $texts,
         ];
 
         $dimensions = $this->getConfig()->getDimensions();

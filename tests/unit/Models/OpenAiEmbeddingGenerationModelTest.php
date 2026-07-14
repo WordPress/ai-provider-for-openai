@@ -6,6 +6,8 @@ namespace WordPress\OpenAiAiProvider\Tests\unit\Models;
 
 use PHPUnit\Framework\TestCase;
 use WordPress\AiClient\Common\Exception\InvalidArgumentException;
+use WordPress\AiClient\Files\DTO\File;
+use WordPress\AiClient\Messages\DTO\MessagePart;
 use WordPress\AiClient\Providers\DTO\ProviderMetadata;
 use WordPress\AiClient\Providers\Enums\ProviderTypeEnum;
 use WordPress\AiClient\Providers\Http\Contracts\HttpTransporterInterface;
@@ -34,12 +36,16 @@ class OpenAiEmbeddingGenerationModelTest extends TestCase
             }
         };
 
-        $model->setConfig(ModelConfig::fromArray(['customOptions' => ['dimensions' => 3]]));
-        $params = $model->exposePrepareGenerateEmbeddingsParams(['Search text']);
+        $model->setConfig(ModelConfig::fromArray([
+            'dimensions' => 3,
+            'customOptions' => ['encoding_format' => 'float'],
+        ]));
+        $params = $model->exposePrepareGenerateEmbeddingsParams([new MessagePart('Search text')]);
 
         $this->assertEquals('text-embedding-3-small', $params['model']);
         $this->assertEquals(['Search text'], $params['input']);
         $this->assertEquals(3, $params['dimensions']);
+        $this->assertEquals('float', $params['encoding_format']);
     }
 
     public function testGenerateEmbeddingResultSendsBatchEmbeddingsApiRequest(): void
@@ -54,7 +60,10 @@ class OpenAiEmbeddingGenerationModelTest extends TestCase
             }
         };
 
-        $params = $model->exposePrepareGenerateEmbeddingsParams(['First', 'Second']);
+        $params = $model->exposePrepareGenerateEmbeddingsParams([
+            new MessagePart('First'),
+            new MessagePart('Second'),
+        ]);
 
         $this->assertEquals(['First', 'Second'], $params['input']);
     }
@@ -62,9 +71,10 @@ class OpenAiEmbeddingGenerationModelTest extends TestCase
     /**
      * @dataProvider invalidInputs
      *
-     * @param mixed $input The invalid embedding input.
+     * @param array<mixed> $input The invalid embedding input.
+     * @param string       $message The expected exception message.
      */
-    public function testPrepareGenerateEmbeddingsParamsRejectsInvalidInputs($input): void
+    public function testPrepareGenerateEmbeddingsParamsRejectsInvalidInputs(array $input, string $message): void
     {
         $model = new class(
             $this->createModelMetadata(),
@@ -77,20 +87,21 @@ class OpenAiEmbeddingGenerationModelTest extends TestCase
         };
 
         $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage($message);
         $model->exposePrepareGenerateEmbeddingsParams($input);
     }
 
     /**
-     * @return array<string, array{0: array<mixed>}>
+     * @return array<string, array{0: array<mixed>, 1: string}>
      */
     public function invalidInputs(): array
     {
         return [
-            'empty list' => [[]],
-            'associative array' => [['first' => 'Search text']],
-            'nested list' => [[['Search text']]],
-            'integer value' => [[1]],
-            'blank string' => [['   ']],
+            'empty list' => [[], 'The API requires at least one prompt.'],
+            'non-list array' => [['first' => new MessagePart('Search text')], 'list of message parts'],
+            'non-message part' => [[1], 'index 0 must be a MessagePart'],
+            'file part' => [[new MessagePart(new File('https://example.com/image.jpg', 'image/jpeg'))], 'index 0 must be a text part'],
+            'blank text part' => [[new MessagePart('   ')], 'index 0 must contain non-empty text'],
         ];
     }
 
@@ -134,7 +145,10 @@ class OpenAiEmbeddingGenerationModelTest extends TestCase
         $model->setHttpTransporter($httpTransporter);
         $model->setRequestAuthentication($requestAuthentication);
 
-        $result = $model->generateEmbeddingResult(['First', 'Second']);
+        $result = $model->generateEmbeddingResult([
+            new MessagePart('First'),
+            new MessagePart('Second'),
+        ]);
 
         $this->assertEquals('emb-openai-123', $result->getId());
         $this->assertEquals([0.1, 0.2, 0.3], $result->getEmbeddings()[0]->getValues());
