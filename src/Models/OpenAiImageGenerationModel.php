@@ -5,14 +5,18 @@ declare(strict_types=1);
 namespace WordPress\OpenAiAiProvider\Models;
 
 use WordPress\AiClient\Common\Exception\InvalidArgumentException;
+use WordPress\AiClient\Common\Exception\RuntimeException;
 use WordPress\AiClient\Files\DTO\File;
 use WordPress\AiClient\Files\Enums\MediaOrientationEnum;
 use WordPress\AiClient\Messages\DTO\Message;
 use WordPress\AiClient\Providers\Http\DTO\Request;
+use WordPress\AiClient\Providers\Http\DTO\Response;
 use WordPress\AiClient\Providers\Http\Enums\HttpMethodEnum;
 use WordPress\AiClient\Providers\OpenAiCompatibleImplementation\AbstractOpenAiCompatibleImageGenerationModel;
 use WordPress\AiClient\Results\DTO\GenerativeAiResult;
+use WordPress\OpenAiAiProvider\Provider\OpenAiApiOperation;
 use WordPress\OpenAiAiProvider\Provider\OpenAiProvider;
+use WordPress\OpenAiAiProvider\Traits\OpenAiApiProfileContextTrait;
 
 /**
  * Class for an OpenAI image generation model using the Images API.
@@ -28,6 +32,15 @@ use WordPress\OpenAiAiProvider\Provider\OpenAiProvider;
  */
 class OpenAiImageGenerationModel extends AbstractOpenAiCompatibleImageGenerationModel
 {
+    use OpenAiApiProfileContextTrait;
+
+    /**
+     * The operation used by the active image request.
+     *
+     * @var string
+     */
+    private string $apiOperation = OpenAiApiOperation::GENERATE_IMAGE;
+
     /**
      * {@inheritDoc}
      *
@@ -42,7 +55,23 @@ class OpenAiImageGenerationModel extends AbstractOpenAiCompatibleImageGeneration
      */
     public function generateImageResult(array $prompt): GenerativeAiResult
     {
-        if ($this->promptContainsImage($prompt)) {
+        $isEdit = $this->promptContainsImage($prompt);
+        $this->apiOperation = $isEdit
+            ? OpenAiApiOperation::EDIT_IMAGE
+            : OpenAiApiOperation::GENERATE_IMAGE;
+
+        $apiProfile = $this->getOpenAiApiProfile();
+        if ($apiProfile !== null && !$apiProfile->supportsOperation($this->apiOperation)) {
+            $operationLabel = $isEdit ? 'image editing' : 'image generation';
+            throw new RuntimeException(
+                sprintf(
+                    'The selected OpenAI API profile does not support %s.',
+                    $operationLabel
+                )
+            );
+        }
+
+        if ($isEdit) {
             return $this->generateImageEditResult($prompt);
         }
 
@@ -82,13 +111,43 @@ class OpenAiImageGenerationModel extends AbstractOpenAiCompatibleImageGeneration
         array $headers = [],
         $data = null
     ): Request {
-        return new Request(
+        $apiProfile = $this->getOpenAiApiProfile();
+        $defaultUrl = OpenAiProvider::url($path);
+        $requestUrl = $apiProfile !== null
+            ? $apiProfile->getRequestUrl($defaultUrl, $path, $this->apiOperation)
+            : $defaultUrl;
+
+        $request = new Request(
             $method,
-            OpenAiProvider::url($path),
+            $requestUrl,
             $headers,
             $data,
             $this->getRequestOptions()
         );
+
+        return $apiProfile !== null
+            ? $apiProfile->prepareRequest($request, $this->apiOperation)
+            : $request;
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * @since 1.1.0
+     */
+    protected function parseResponseToGenerativeAiResult(
+        Response $response,
+        string $expectedMimeType = 'image/png'
+    ): GenerativeAiResult {
+        $apiProfile = $this->getOpenAiApiProfile();
+        if ($apiProfile !== null) {
+            $response = $apiProfile->normalizeResponse(
+                $response,
+                $this->apiOperation
+            );
+        }
+
+        return parent::parseResponseToGenerativeAiResult($response, $expectedMimeType);
     }
 
     /**

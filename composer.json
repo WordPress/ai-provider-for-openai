@@ -55,10 +55,12 @@
     "scripts": {
         "lint": [
             "@phpcs",
-            "@phpstan"
+            "@phpstan",
+            "@test"
         ],
         "phpcbf": "phpcbf",
         "phpcs": "phpcs",
-        "phpstan": "phpstan analyze --memory-limit=256M"
+        "phpstan": "phpstan analyze --memory-limit=256M",
+        "test": "@php tests/run.php"
     }
 }
