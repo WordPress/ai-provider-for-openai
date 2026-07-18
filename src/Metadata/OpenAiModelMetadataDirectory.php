@@ -59,13 +59,16 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
         '/^gpt-(?:5\.[12]|5\.4(?:-(?:mini|nano))?)(?:-\d{4}-\d{2}-\d{2})?$/';
 
     /**
-     * Regular expression matching GPT-5 chat aliases that are non-reasoning models.
+     * Regular expression matching GPT-5 chat aliases that may advertise sampling options.
+     *
+     * Live API verification directly established that the versioned GPT-5.1 and GPT-5.2 chat
+     * aliases reject `temperature`, so they are excluded.
      *
      * @since 1.1.0
      *
      * @var string
      */
-    private const NON_REASONING_CHAT_MODEL_ID_PATTERN = '/^gpt-5(?:\.\d+)?-chat-latest$/';
+    private const NON_REASONING_CHAT_MODEL_ID_PATTERN = '/^gpt-5-chat-latest$/';
 
     /**
      * {@inheritDoc}
