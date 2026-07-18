@@ -128,6 +128,16 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
             $params['top_p'] = $topP;
         }
 
+        $logprobs = $config->getLogprobs();
+        if ($logprobs === true) {
+            $params['include'] = ['message.output_text.logprobs'];
+        }
+
+        $topLogprobs = $config->getTopLogprobs();
+        if ($topLogprobs !== null) {
+            $params['top_logprobs'] = $topLogprobs;
+        }
+
         // Note: OpenAI does not support top_k parameter.
 
         $outputMimeType = $config->getOutputMimeType();
@@ -178,12 +188,13 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
     /**
      * Validates that sampling parameters are not combined with an explicitly enabled reasoning effort.
      *
-     * The model metadata advertises support for `temperature`, `top_p`, and `top_logprobs` for
-     * reasoning models that run with `reasoning.effort` set to `none` by default (e.g. `gpt-5.2`
-     * and `gpt-5.4`), because the options apply in that default mode. The OpenAI API rejects
-     * these parameters as soon as reasoning is enabled, which the metadata cannot express
-     * conditionally. Since a reasoning effort can only be requested via the `reasoning` custom
-     * option, that combination is caught here before the API request is sent.
+     * The model metadata advertises support for `temperature`, `top_p`, `logprobs`, and
+     * `top_logprobs` for reasoning models that run with `reasoning.effort` set to `none` by
+     * default (e.g. `gpt-5.2` and `gpt-5.4`), because the options apply in that default mode.
+     * The OpenAI API rejects these parameters as soon as reasoning is enabled, which the
+     * metadata cannot express conditionally. Since a reasoning effort can only be requested
+     * via the `reasoning` custom option, that combination is caught here before the API request
+     * is sent.
      *
      * @since 1.0.4
      *
@@ -203,7 +214,16 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
             return;
         }
 
-        $samplingParams = array_intersect(['temperature', 'top_p', 'top_logprobs'], array_keys($params));
+        $samplingParams = array_values(
+            array_intersect(['temperature', 'top_p', 'top_logprobs'], array_keys($params))
+        );
+        $include = $params['include'] ?? null;
+        if (
+            is_array($include)
+            && in_array('message.output_text.logprobs', $include, true)
+        ) {
+            $samplingParams[] = 'logprobs';
+        }
         if (!$samplingParams) {
             return;
         }
@@ -211,8 +231,7 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
         throw new InvalidArgumentException(
             sprintf(
                 'The parameter(s) "%s" cannot be combined with reasoning effort "%s" for model "%s". '
-                    . 'OpenAI models only support temperature, top_p, and logprobs when the reasoning effort '
-                    . 'is "none".',
+                    . 'OpenAI Responses only support these sampling options when the reasoning effort is "none".',
                 implode('", "', $samplingParams),
                 $effort,
                 $this->metadata()->getId()

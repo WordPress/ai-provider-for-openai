@@ -25,6 +25,36 @@ use WordPress\OpenAiAiProvider\Models\OpenAiTextGenerationModel;
 class OpenAiTextGenerationModelTest extends TestCase
 {
     /**
+     * Tests that native log-probability options are mapped to Responses API parameters.
+     *
+     * @since 1.1.0
+     */
+    public function testNativeLogProbabilityOptionsAreMapped(): void
+    {
+        $params = $this->prepareParams([
+            'logprobs' => true,
+            'topLogprobs' => 5,
+        ]);
+
+        $this->assertSame(['message.output_text.logprobs'], $params['include']);
+        $this->assertSame(5, $params['top_logprobs']);
+    }
+
+    /**
+     * Tests that explicitly disabling log probabilities does not request their output.
+     *
+     * @since 1.1.0
+     */
+    public function testFalseLogprobsDoesNotRequestLogProbabilityOutput(): void
+    {
+        $params = $this->prepareParams([
+            'logprobs' => false,
+        ]);
+
+        $this->assertArrayNotHasKey('include', $params);
+    }
+
+    /**
      * Tests that sampling options combined with an explicit non-`none` reasoning effort are rejected.
      *
      * Models like `gpt-5.2` and `gpt-5.4` support sampling options in their default
@@ -54,7 +84,7 @@ class OpenAiTextGenerationModelTest extends TestCase
      *
      * @return array<string, array{array<string, mixed>, string}> Test cases.
      */
-    public function conflictingSamplingConfigProvider(): array
+    public static function conflictingSamplingConfigProvider(): array
     {
         return [
             'temperature with high effort' => [
@@ -71,12 +101,17 @@ class OpenAiTextGenerationModelTest extends TestCase
                 ],
                 'top_p',
             ],
-            'top_logprobs custom option with low effort' => [
+            'logprobs with low effort' => [
                 [
-                    'customOptions' => [
-                        'top_logprobs' => 5,
-                        'reasoning' => ['effort' => 'low'],
-                    ],
+                    'logprobs' => true,
+                    'customOptions' => ['reasoning' => ['effort' => 'low']],
+                ],
+                'logprobs',
+            ],
+            'top_logprobs with high effort' => [
+                [
+                    'topLogprobs' => 5,
+                    'customOptions' => ['reasoning' => ['effort' => 'high']],
                 ],
                 'top_logprobs',
             ],
@@ -91,11 +126,15 @@ class OpenAiTextGenerationModelTest extends TestCase
         $params = $this->prepareParams([
             'temperature' => 0.7,
             'topP' => 0.9,
+            'logprobs' => true,
+            'topLogprobs' => 5,
             'customOptions' => ['reasoning' => ['effort' => 'none']],
         ]);
 
         $this->assertSame(0.7, $params['temperature']);
         $this->assertSame(0.9, $params['top_p']);
+        $this->assertSame(['message.output_text.logprobs'], $params['include']);
+        $this->assertSame(5, $params['top_logprobs']);
         $this->assertSame(['effort' => 'none'], $params['reasoning']);
     }
 
