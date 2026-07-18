@@ -20,6 +20,8 @@ use WordPress\AiClient\Providers\Http\DTO\RequestOptions;
 use WordPress\AiClient\Providers\Http\DTO\Response;
 use WordPress\AiClient\Providers\Models\DTO\ModelMetadata;
 use WordPress\AiClient\Providers\Models\Enums\CapabilityEnum;
+use WordPress\AiClient\Providers\ProviderRegistry;
+use WordPress\OpenAiAiProvider\Authentication\OpenAiApiProfileRequestAuthenticationAdapter;
 use WordPress\OpenAiAiProvider\Contracts\OpenAiApiProfileAwareAuthenticationInterface;
 use WordPress\OpenAiAiProvider\Contracts\OpenAiApiProfileInterface;
 use WordPress\OpenAiAiProvider\Metadata\OpenAiModelMetadataDirectory;
@@ -27,6 +29,7 @@ use WordPress\OpenAiAiProvider\Models\OpenAiImageGenerationModel;
 use WordPress\OpenAiAiProvider\Models\OpenAiTextGenerationModel;
 use WordPress\OpenAiAiProvider\Provider\OpenAiApiOperation;
 use WordPress\OpenAiAiProvider\Provider\OpenAiApiProfileResolver;
+use WordPress\OpenAiAiProvider\Provider\OpenAiProvider;
 
 /** @var array<string, list<callable>> */
 $GLOBALS['openai_profile_test_filters'] = [];
@@ -230,6 +233,36 @@ final class OpenAiProfileTestAuthentication extends ApiKeyRequestAuthentication 
 }
 
 /**
+ * Profile-aware authentication that is intentionally unrelated to API keys.
+ */
+final class OpenAiProfileTestDelegatedAuthentication implements
+    OpenAiApiProfileAwareAuthenticationInterface
+{
+    private OpenAiApiProfileInterface $profile;
+
+    public function __construct(OpenAiApiProfileInterface $profile)
+    {
+        $this->profile = $profile;
+    }
+
+    public function getOpenAiApiProfile(): OpenAiApiProfileInterface
+    {
+        return $this->profile;
+    }
+
+    public function authenticateRequest(Request $request): Request
+    {
+        return $request->withHeader('Authorization', 'Bearer delegated-profile-token');
+    }
+
+    /** @return array<string, mixed> */
+    public static function getJsonSchema(): array
+    {
+        return ['type' => 'object', 'properties' => []];
+    }
+}
+
+/**
  * Capturing HTTP transporter for request and short-circuit assertions.
  */
 final class OpenAiProfileTestTransporter implements HttpTransporterInterface
@@ -390,6 +423,56 @@ function openai_profile_test_prompt(): array
 
 /** @var array<string, callable> $tests */
 $tests = [];
+
+$tests['profile authentication adapter satisfies the registry type contract'] = static function (): void {
+    openai_profile_test_reset();
+    $profile = new OpenAiProfileTestProfile(
+        'profile-adapter',
+        [OpenAiApiOperation::GENERATE_TEXT],
+        new OpenAiProfileTestTrace()
+    );
+    $delegate = new OpenAiProfileTestDelegatedAuthentication($profile);
+    $authentication = new OpenAiApiProfileRequestAuthenticationAdapter($delegate);
+
+    openai_profile_test_true($authentication instanceof ApiKeyRequestAuthentication);
+    openai_profile_test_same(
+        OpenAiApiProfileResolver::resolve($authentication),
+        $profile
+    );
+
+    $request = new Request(
+        \WordPress\AiClient\Providers\Http\Enums\HttpMethodEnum::GET(),
+        'https://profile-adapter.example/models'
+    );
+    $authenticatedRequest = $authentication->authenticateRequest($request);
+    openai_profile_test_same(
+        $authenticatedRequest->getHeaderAsString('Authorization'),
+        'Bearer delegated-profile-token'
+    );
+    openai_profile_test_same(
+        strpos($authenticatedRequest->getHeaderAsString('Authorization'), 'managed-authentication'),
+        false
+    );
+
+    $registry = new ProviderRegistry();
+    $registry->registerProvider(OpenAiProvider::class);
+    try {
+        $registry->setProviderRequestAuthentication(OpenAiProvider::class, $authentication);
+        openai_profile_test_same(
+            $registry->getProviderRequestAuthentication(OpenAiProvider::class),
+            $authentication
+        );
+        openai_profile_test_same(
+            OpenAiProvider::modelMetadataDirectory()->getRequestAuthentication(),
+            $authentication
+        );
+    } finally {
+        $registry->setProviderRequestAuthentication(
+            OpenAiProvider::class,
+            new ApiKeyRequestAuthentication('profile-adapter-test-reset-key')
+        );
+    }
+};
 
 $tests['plain API-key behavior remains unchanged'] = static function (): void {
     openai_profile_test_reset();
