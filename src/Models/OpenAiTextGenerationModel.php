@@ -196,7 +196,7 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
      * via the `reasoning` custom option, that combination is caught here before the API request
      * is sent.
      *
-     * @since 1.0.4
+     * @since 1.1.0
      *
      * @param array<string, mixed> $params The prepared parameters for the API request.
      * @return void

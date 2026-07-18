@@ -20,7 +20,7 @@ use WordPress\OpenAiAiProvider\Models\OpenAiTextGenerationModel;
 /**
  * Tests for the OpenAI text generation model.
  *
- * @since 1.0.4
+ * @since 1.1.0
  */
 class OpenAiTextGenerationModelTest extends TestCase
 {

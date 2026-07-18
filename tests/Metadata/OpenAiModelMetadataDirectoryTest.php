@@ -15,7 +15,7 @@ use WordPress\OpenAiAiProvider\Metadata\OpenAiModelMetadataDirectory;
 /**
  * Tests for the OpenAI model metadata directory.
  *
- * @since 1.0.4
+ * @since 1.1.0
  */
 class OpenAiModelMetadataDirectoryTest extends TestCase
 {

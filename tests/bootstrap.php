@@ -3,7 +3,7 @@
 /**
  * PHPUnit bootstrap file for the AI Provider for OpenAI package.
  *
- * @since 1.0.4
+ * @since 1.1.0
  *
  * @package WordPress\OpenAiAiProvider
  */
