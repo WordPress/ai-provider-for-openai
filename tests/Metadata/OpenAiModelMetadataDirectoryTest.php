@@ -23,10 +23,9 @@ class OpenAiModelMetadataDirectoryTest extends TestCase
      * Tests that sampling option support is advertised for exactly the right models.
      *
      * The sampling options (`temperature`, `top_p`, `logprobs`, and `top_logprobs`) are supported
-     * by standard GPT models, and by reasoning models whose default reasoning effort is `none`
-     * (currently `gpt-5.2` and `gpt-5.4`). All other reasoning models cannot disable reasoning and
-     * must not advertise these options, since a configured option becomes a required option during
-     * requirement-based model resolution.
+     * by the currently documented standard GPT models and by reasoning models whose default
+     * reasoning effort is `none`. Other reasoning models must not advertise these options, since a
+     * configured option becomes a required option during requirement-based model resolution.
      *
      * @dataProvider samplingOptionSupportProvider
      *
@@ -69,22 +68,33 @@ class OpenAiModelMetadataDirectoryTest extends TestCase
     }
 
     /**
-     * Data provider for testSamplingOptionSupport().
+     * Data provider for currently documented models' sampling option support.
      *
      * @return array<string, array{string, bool}> Test cases with model ID and expected support.
      */
-    public function samplingOptionSupportProvider(): array
+    public static function samplingOptionSupportProvider(): array
     {
         return [
             'gpt-5 (reasoning always enabled)' => ['gpt-5', false],
             'gpt-5-mini (reasoning always enabled)' => ['gpt-5-mini', false],
-            'gpt-5.1 (reasoning always enabled)' => ['gpt-5.1', false],
+            'gpt-5-pro (reasoning always enabled)' => ['gpt-5-pro', false],
+            'gpt-5.1 (default reasoning effort none)' => ['gpt-5.1', true],
+            'gpt-5.1 dated snapshot' => ['gpt-5.1-2025-11-13', true],
             'gpt-5.2 (default reasoning effort none)' => ['gpt-5.2', true],
-            'gpt-5.2 dated snapshot' => ['gpt-5.2-2026-04-14', true],
+            'gpt-5.2 dated snapshot' => ['gpt-5.2-2025-12-11', true],
             'gpt-5.4 (default reasoning effort none)' => ['gpt-5.4', true],
-            'gpt-5-pro (cannot disable reasoning)' => ['gpt-5-pro', false],
+            'gpt-5.4 dated snapshot' => ['gpt-5.4-2026-03-05', true],
+            'gpt-5.4-mini (default reasoning effort none)' => ['gpt-5.4-mini', true],
+            'gpt-5.4-mini dated snapshot' => ['gpt-5.4-mini-2026-03-17', true],
+            'gpt-5.4-nano (default reasoning effort none)' => ['gpt-5.4-nano', true],
+            'gpt-5.4-nano dated snapshot' => ['gpt-5.4-nano-2026-03-17', true],
             'gpt-5.2-pro (cannot disable reasoning)' => ['gpt-5.2-pro', false],
             'gpt-5.2-codex (cannot disable reasoning)' => ['gpt-5.2-codex', false],
+            'gpt-5-chat-latest (non-reasoning chat alias)' => ['gpt-5-chat-latest', true],
+            'gpt-5.1-chat-latest (non-reasoning chat alias)' => ['gpt-5.1-chat-latest', true],
+            'gpt-5.2-chat-latest (non-reasoning chat alias)' => ['gpt-5.2-chat-latest', true],
+            'fine-tuned gpt-5.2' => ['ft:gpt-5.2:example-org:example-model', true],
+            'fine-tuned gpt-5.2-codex' => ['ft:gpt-5.2-codex:example-org:example-model', false],
             'codex-mini-latest (reasoning always enabled)' => ['codex-mini-latest', false],
             'o3 (reasoning always enabled)' => ['o3', false],
             'o4-mini (reasoning always enabled)' => ['o4-mini', false],
