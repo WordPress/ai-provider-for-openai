@@ -186,6 +186,7 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
                 'audio/flac',
                 'audio/aac',
             ]),
+            new SupportedOption(OptionEnum::outputFileType(), [FileTypeEnum::inline()]),
             new SupportedOption(OptionEnum::outputSpeechVoice()),
             new SupportedOption(OptionEnum::customOptions()),
         ];
