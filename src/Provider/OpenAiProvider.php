@@ -83,9 +83,9 @@ class OpenAiProvider extends AbstractApiProvider
             // For WordPress, we should translate the description.
             if (function_exists('__')) {
                 // phpcs:ignore Generic.Files.LineLength.TooLong
-                $providerMetadataArgs[] = __('Text and image generation with GPT and Dall-E.', 'ai-provider-for-openai');
+                $providerMetadataArgs[] = __('Text, image, and speech generation with GPT and Dall-E.', 'ai-provider-for-openai');
             } else {
-                $providerMetadataArgs[] = 'Text and image generation with GPT and Dall-E.';
+                $providerMetadataArgs[] = 'Text, image, and speech generation with GPT and Dall-E.';
             }
         }
         // Provider logoPath support was added in 1.3.0.
