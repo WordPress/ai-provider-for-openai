@@ -18,6 +18,7 @@ use WordPress\AiClient\Providers\Models\DTO\ModelMetadata;
 use WordPress\OpenAiAiProvider\Metadata\OpenAiModelMetadataDirectory;
 use WordPress\OpenAiAiProvider\Models\OpenAiImageGenerationModel;
 use WordPress\OpenAiAiProvider\Models\OpenAiTextGenerationModel;
+use WordPress\OpenAiAiProvider\Models\OpenAiTextToSpeechConversionModel;
 
 /**
  * Class for the AI Provider for OpenAI.
@@ -54,10 +55,7 @@ class OpenAiProvider extends AbstractApiProvider
                 return new OpenAiImageGenerationModel($modelMetadata, $providerMetadata);
             }
             if ($capability->isTextToSpeechConversion()) {
-                // TODO: Implement OpenAiTextToSpeechConversionModel.
-                throw new RuntimeException(
-                    'OpenAI text to speech conversion model class is not yet implemented.'
-                );
+                return new OpenAiTextToSpeechConversionModel($modelMetadata, $providerMetadata);
             }
         }
 
