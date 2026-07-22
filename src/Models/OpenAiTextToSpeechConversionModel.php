@@ -13,6 +13,7 @@ use WordPress\AiClient\Providers\ApiBasedImplementation\AbstractApiBasedModel;
 use WordPress\AiClient\Providers\Http\DTO\Request;
 use WordPress\AiClient\Providers\Http\DTO\Response;
 use WordPress\AiClient\Providers\Http\Enums\HttpMethodEnum;
+use WordPress\AiClient\Providers\Http\Exception\ResponseException;
 use WordPress\AiClient\Providers\Http\Util\ResponseUtil;
 use WordPress\AiClient\Providers\Models\TextToSpeechConversion\Contracts\TextToSpeechConversionModelInterface;
 use WordPress\AiClient\Results\DTO\Candidate;
@@ -211,14 +212,15 @@ class OpenAiTextToSpeechConversionModel extends AbstractApiBasedModel implements
      * @param Response $response The HTTP response containing raw audio bytes.
      * @param string   $mimeType The MIME type of the returned audio.
      * @return GenerativeAiResult The generative AI result containing the audio file.
-     * @throws InvalidArgumentException If the response body is empty.
+     * @throws ResponseException If the response body is empty.
      */
     protected function parseResponseToGenerativeAiResult(Response $response, string $mimeType): GenerativeAiResult
     {
         $body = $response->getBody();
         if ($body === null || '' === $body) {
-            throw new InvalidArgumentException(
-                'The API returned an empty audio response.'
+            throw ResponseException::fromMissingData(
+                $this->providerMetadata()->getName(),
+                'body'
             );
         }
 
