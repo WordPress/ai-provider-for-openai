@@ -137,7 +137,20 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
             new SupportedOption(OptionEnum::dimensions()),
             new SupportedOption(OptionEnum::customOptions()),
         ];
-        $dalleImageOptions = [
+        $dalle2Options = [
+            new SupportedOption(OptionEnum::inputModalities(), [
+                [ModalityEnum::text()],
+                [ModalityEnum::text(), ModalityEnum::image()],
+            ]),
+            new SupportedOption(OptionEnum::outputModalities(), [[ModalityEnum::image()]]),
+            new SupportedOption(OptionEnum::candidateCount()),
+            new SupportedOption(OptionEnum::outputMimeType(), ['image/png']),
+            new SupportedOption(OptionEnum::outputFileType(), [FileTypeEnum::inline(), FileTypeEnum::remote()]),
+            new SupportedOption(OptionEnum::outputMediaOrientation(), [MediaOrientationEnum::square()]),
+            new SupportedOption(OptionEnum::outputMediaAspectRatio(), ['1:1']),
+            new SupportedOption(OptionEnum::customOptions()),
+        ];
+        $dalle3Options = [
             new SupportedOption(OptionEnum::inputModalities(), [[ModalityEnum::text()]]),
             new SupportedOption(OptionEnum::outputModalities(), [[ModalityEnum::image()]]),
             new SupportedOption(OptionEnum::candidateCount()),
@@ -152,7 +165,10 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
             new SupportedOption(OptionEnum::customOptions()),
         ];
         $gptImageOptions = [
-            new SupportedOption(OptionEnum::inputModalities(), [[ModalityEnum::text()]]),
+            new SupportedOption(OptionEnum::inputModalities(), [
+                [ModalityEnum::text()],
+                [ModalityEnum::text(), ModalityEnum::image()],
+            ]),
             new SupportedOption(OptionEnum::outputModalities(), [[ModalityEnum::image()]]),
             new SupportedOption(OptionEnum::candidateCount()),
             new SupportedOption(OptionEnum::outputMimeType(), ['image/png', 'image/jpeg', 'image/webp']),
@@ -195,8 +211,9 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
                     $imageCapabilities,
                     $embeddingCapabilities,
                     $embeddingOptions,
-                    $dalleImageOptions,
                     $gptImageOptions,
+                    $dalle2Options,
+                    $dalle3Options,
                     $ttsCapabilities,
                     $ttsOptions
                 ): ModelMetadata {
@@ -217,15 +234,17 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
                         $modelCaps = $embeddingCapabilities;
                         $modelOptions = $embeddingOptions;
                     } elseif (
-                        str_starts_with($modelId, 'dall-e-') ||
-                        str_starts_with($modelId, 'gpt-image-')
+                        str_starts_with($modelId, 'gpt-image-') ||
+                        str_starts_with($modelId, 'chatgpt-image-')
                     ) {
                         $modelCaps = $imageCapabilities;
-                        if (str_starts_with($modelId, 'gpt-image-')) {
-                            $modelOptions = $gptImageOptions;
-                        } else {
-                            $modelOptions = $dalleImageOptions;
-                        }
+                        $modelOptions = $gptImageOptions;
+                    } elseif ($modelId === 'dall-e-2') {
+                        $modelCaps = $imageCapabilities;
+                        $modelOptions = $dalle2Options;
+                    } elseif (str_starts_with($modelId, 'dall-e-')) {
+                        $modelCaps = $imageCapabilities;
+                        $modelOptions = $dalle3Options;
                     } elseif (
                         str_starts_with($modelId, 'tts-') ||
                         str_contains($modelId, '-tts')
