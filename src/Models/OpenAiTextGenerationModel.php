@@ -569,7 +569,7 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
             $usage = $responseData['usage'];
             $tokenUsage = $this->buildTokenUsage($usage);
         } else {
-            $tokenUsage = new TokenUsage(0, 0, 0);
+            $tokenUsage = $this->buildTokenUsage([]);
         }
 
         // Use any other data from the response as provider-specific response metadata.
