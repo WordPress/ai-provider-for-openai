@@ -16,6 +16,7 @@ use WordPress\AiClient\Providers\Http\DTO\Request;
 use WordPress\AiClient\Providers\Http\DTO\Response;
 use WordPress\AiClient\Providers\Models\DTO\ModelConfig;
 use WordPress\AiClient\Providers\Models\DTO\ModelMetadata;
+use WordPress\AiClient\Providers\Models\EmbeddingGeneration\Contracts\EmbeddingGenerationModelInterface;
 use WordPress\AiClient\Providers\Models\Enums\CapabilityEnum;
 use WordPress\OpenAiAiProvider\Models\OpenAiEmbeddingGenerationModel;
 
@@ -24,6 +25,21 @@ use WordPress\OpenAiAiProvider\Models\OpenAiEmbeddingGenerationModel;
  */
 class OpenAiEmbeddingGenerationModelTest extends TestCase
 {
+    /**
+     * Skips the tests unless the installed PHP AI Client supports embedding generation.
+     *
+     * Embedding generation support was added in PHP AI Client 1.4.0, while the plugin
+     * still supports 1.3.1 as bundled with WordPress 7.0.
+     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        if (!interface_exists(EmbeddingGenerationModelInterface::class)) {
+            $this->markTestSkipped('Embedding generation requires PHP AI Client 1.4.0 or later.');
+        }
+    }
+
     public function testGenerateEmbeddingResultSendsEmbeddingsApiRequest(): void
     {
         $model = new class(

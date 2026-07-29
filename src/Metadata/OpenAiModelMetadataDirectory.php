@@ -13,6 +13,7 @@ use WordPress\AiClient\Providers\Http\Enums\HttpMethodEnum;
 use WordPress\AiClient\Providers\Http\Exception\ResponseException;
 use WordPress\AiClient\Providers\Models\DTO\ModelMetadata;
 use WordPress\AiClient\Providers\Models\DTO\SupportedOption;
+use WordPress\AiClient\Providers\Models\EmbeddingGeneration\Contracts\EmbeddingGenerationModelInterface;
 use WordPress\AiClient\Providers\Models\Enums\CapabilityEnum;
 use WordPress\AiClient\Providers\Models\Enums\OptionEnum;
 use WordPress\AiClient\Providers\OpenAiCompatibleImplementation\AbstractOpenAiCompatibleModelMetadataDirectory;
@@ -129,14 +130,20 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
         $imageCapabilities = [
             CapabilityEnum::imageGeneration(),
         ];
-        $embeddingCapabilities = [
-            CapabilityEnum::embeddingGeneration(),
-        ];
-        $embeddingOptions = [
-            new SupportedOption(OptionEnum::inputModalities(), [[ModalityEnum::text()]]),
-            new SupportedOption(OptionEnum::dimensions()),
-            new SupportedOption(OptionEnum::customOptions()),
-        ];
+        // Embedding generation support was added in 1.4.0.
+        $supportsEmbeddingGeneration = interface_exists(EmbeddingGenerationModelInterface::class);
+        $embeddingCapabilities = [];
+        $embeddingOptions = [];
+        if ($supportsEmbeddingGeneration) {
+            $embeddingCapabilities = [
+                CapabilityEnum::embeddingGeneration(),
+            ];
+            $embeddingOptions = [
+                new SupportedOption(OptionEnum::inputModalities(), [[ModalityEnum::text()]]),
+                new SupportedOption(OptionEnum::dimensions()),
+                new SupportedOption(OptionEnum::customOptions()),
+            ];
+        }
         $dalle2Options = [
             new SupportedOption(OptionEnum::inputModalities(), [
                 [ModalityEnum::text()],
