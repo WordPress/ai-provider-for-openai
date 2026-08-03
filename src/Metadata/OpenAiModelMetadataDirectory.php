@@ -53,14 +53,25 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
      * full capability/option metadata from {@see self::parseResponseToModelMetadataList()}.
      *
      * @since n.e.x.t
+     *
+     * @param list<string> $modelIds The explicit model IDs.
+     * @return array<string, ModelMetadata> Map of model ID to explicit model metadata.
      */
-    protected function createModelMetadataForExplicitModelId(string $modelId): ?ModelMetadata
+    protected function createModelMetadataForExplicitModelIds(array $modelIds): array
     {
-        if (!$this->isExplicitTextGenerationModelId($modelId)) {
-            return null;
+        $modelsMetadata = [];
+        foreach ($modelIds as $modelId) {
+            if ($this->isExplicitTextGenerationModelId($modelId)) {
+                $modelsMetadata[$modelId] = new ModelMetadata(
+                    $modelId,
+                    $modelId,
+                    [CapabilityEnum::textGeneration()],
+                    []
+                );
+            }
         }
 
-        return new ModelMetadata($modelId, $modelId, [CapabilityEnum::textGeneration()], []);
+        return $modelsMetadata;
     }
 
     /**
