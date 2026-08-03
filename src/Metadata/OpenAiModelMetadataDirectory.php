@@ -59,40 +59,14 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
      */
     protected function createModelMetadataForExplicitModelIds(array $modelIds): array
     {
-        $modelsMetadata = [];
-        foreach ($modelIds as $modelId) {
-            if ($this->isExplicitTextGenerationModelId($modelId)) {
-                $modelsMetadata[$modelId] = new ModelMetadata(
-                    $modelId,
-                    $modelId,
-                    [CapabilityEnum::textGeneration()],
-                    []
-                );
-            }
-        }
-
-        return $modelsMetadata;
-    }
-
-    /**
-     * Checks whether a model ID is safe to treat as a text generation model without listing models.
-     *
-     * @since n.e.x.t
-     *
-     * @param string $modelId The explicit model ID.
-     * @return bool True if the model ID matches common OpenAI text generation model families.
-     */
-    protected function isExplicitTextGenerationModelId(string $modelId): bool
-    {
-        if (str_starts_with($modelId, 'gpt-image-') || str_starts_with($modelId, 'dall-e-')) {
-            return false;
-        }
-
-        if (str_starts_with($modelId, 'gpt-') || str_starts_with($modelId, 'chatgpt-')) {
-            return true;
-        }
-
-        return preg_match('/^o\d(?:-|$)/', $modelId) === 1;
+        return array_filter(
+            $this->createModelMetadataMap($modelIds),
+            static fn(ModelMetadata $metadata): bool => in_array(
+                CapabilityEnum::textGeneration(),
+                $metadata->getSupportedCapabilities(),
+                true
+            )
+        );
     }
 
     /**
@@ -108,6 +82,27 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
             throw ResponseException::fromMissingData('OpenAI', 'data');
         }
 
+        $modelIds = array_map(
+            static fn(array $modelData): string => $modelData['id'],
+            (array) $responseData['data']
+        );
+        $models = array_values($this->createModelMetadataMap($modelIds));
+
+        usort($models, [$this, 'modelSortCallback']);
+
+        return $models;
+    }
+
+    /**
+     * Creates model metadata using the shared OpenAI model ID classifier.
+     *
+     * @since n.e.x.t
+     *
+     * @param list<string> $modelIds The model IDs.
+     * @return array<string, ModelMetadata> Map of model ID to model metadata.
+     */
+    private function createModelMetadataMap(array $modelIds): array
+    {
         $allModalityCombinationsWithText = [
             [ModalityEnum::text()],
             [ModalityEnum::text(), ModalityEnum::image()],
@@ -225,7 +220,10 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
             new SupportedOption(OptionEnum::customOptions()),
         ];
 
-        $modelsData = (array) $responseData['data'];
+        $modelsData = array_map(
+            static fn(string $modelId): array => ['id' => $modelId],
+            $modelIds
+        );
 
         $models = array_values(
             array_map(
@@ -261,9 +259,8 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
                     } elseif (
                         (
                             str_starts_with($modelId, 'gpt-')
-                            || str_starts_with($modelId, 'o1')
-                            || str_starts_with($modelId, 'o3')
-                            || str_starts_with($modelId, 'o4')
+                            || str_starts_with($modelId, 'chatgpt-')
+                            || preg_match('/^o\d(?:-|$)/', $modelId) === 1
                             || $modelId === 'codex-mini-latest'
                         )
                         && !str_contains($modelId, '-instruct')
@@ -302,9 +299,12 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
             )
         );
 
-        usort($models, [$this, 'modelSortCallback']);
+        $modelsMetadata = [];
+        foreach ($models as $model) {
+            $modelsMetadata[$model->getId()] = $model;
+        }
 
-        return $models;
+        return $modelsMetadata;
     }
 
     /**
