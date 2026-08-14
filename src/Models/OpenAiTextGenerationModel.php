@@ -24,7 +24,9 @@ use WordPress\AiClient\Results\Enums\FinishReasonEnum;
 use WordPress\AiClient\Tools\DTO\FunctionCall;
 use WordPress\AiClient\Tools\DTO\FunctionDeclaration;
 use WordPress\AiClient\Tools\DTO\WebSearch;
+use WordPress\OpenAiAiProvider\Provider\OpenAiApiOperation;
 use WordPress\OpenAiAiProvider\Provider\OpenAiProvider;
+use WordPress\OpenAiAiProvider\Traits\OpenAiApiProfileContextTrait;
 
 /**
  * Class for an OpenAI text generation model using the Responses API.
@@ -62,6 +64,8 @@ use WordPress\OpenAiAiProvider\Provider\OpenAiProvider;
  */
 class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGenerationModelInterface
 {
+    use OpenAiApiProfileContextTrait;
+
     /**
      * {@inheritDoc}
      *
@@ -72,21 +76,42 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
         $httpTransporter = $this->getHttpTransporter();
 
         $params = $this->prepareGenerateTextParams($prompt);
+        $authentication = $this->getRequestAuthentication();
+        $apiProfile = $this->getOpenAiApiProfile();
+        $operation = OpenAiApiOperation::GENERATE_TEXT;
+
+        if ($apiProfile !== null && !$apiProfile->supportsOperation($operation)) {
+            throw new RuntimeException(
+                'The selected OpenAI API profile does not support text generation.'
+            );
+        }
+
+        $defaultUrl = OpenAiProvider::url('responses');
+        $requestUrl = $apiProfile !== null
+            ? $apiProfile->getRequestUrl($defaultUrl, 'responses', $operation)
+            : $defaultUrl;
 
         $request = new Request(
             HttpMethodEnum::POST(),
-            OpenAiProvider::url('responses'),
+            $requestUrl,
             ['Content-Type' => 'application/json'],
             $params,
             $this->getRequestOptions()
         );
 
+        if ($apiProfile !== null) {
+            $request = $apiProfile->prepareRequest($request, $operation);
+        }
+
         // Add authentication credentials to the request.
-        $request = $this->getRequestAuthentication()->authenticateRequest($request);
+        $request = $authentication->authenticateRequest($request);
 
         // Send and process the request.
         $response = $httpTransporter->send($request);
         ResponseUtil::throwIfNotSuccessful($response);
+        if ($apiProfile !== null) {
+            $response = $apiProfile->normalizeResponse($response, $operation);
+        }
         return $this->parseResponseToGenerativeAiResult($response);
     }
 

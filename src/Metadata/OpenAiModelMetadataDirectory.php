@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace WordPress\OpenAiAiProvider\Metadata;
 
+use WordPress\AiClient\Common\Exception\RuntimeException;
 use WordPress\AiClient\Files\Enums\FileTypeEnum;
 use WordPress\AiClient\Files\Enums\MediaOrientationEnum;
 use WordPress\AiClient\Messages\Enums\ModalityEnum;
@@ -16,7 +17,9 @@ use WordPress\AiClient\Providers\Models\DTO\SupportedOption;
 use WordPress\AiClient\Providers\Models\Enums\CapabilityEnum;
 use WordPress\AiClient\Providers\Models\Enums\OptionEnum;
 use WordPress\AiClient\Providers\OpenAiCompatibleImplementation\AbstractOpenAiCompatibleModelMetadataDirectory;
+use WordPress\OpenAiAiProvider\Provider\OpenAiApiOperation;
 use WordPress\OpenAiAiProvider\Provider\OpenAiProvider;
+use WordPress\OpenAiAiProvider\Traits\OpenAiApiProfileContextTrait;
 
 /**
  * Class for the OpenAI model metadata directory.
@@ -29,6 +32,8 @@ use WordPress\OpenAiAiProvider\Provider\OpenAiProvider;
  */
 class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadataDirectory
 {
+    use OpenAiApiProfileContextTrait;
+
     /**
      * {@inheritDoc}
      *
@@ -36,12 +41,30 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
      */
     protected function createRequest(HttpMethodEnum $method, string $path, array $headers = [], $data = null): Request
     {
-        return new Request(
+        $apiProfile = $this->getOpenAiApiProfile();
+        $operation = OpenAiApiOperation::LIST_MODELS;
+
+        if ($apiProfile !== null && !$apiProfile->supportsOperation($operation)) {
+            throw new RuntimeException(
+                'The selected OpenAI API profile does not support listing models.'
+            );
+        }
+
+        $defaultUrl = OpenAiProvider::url($path);
+        $requestUrl = $apiProfile !== null
+            ? $apiProfile->getRequestUrl($defaultUrl, $path, $operation)
+            : $defaultUrl;
+
+        $request = new Request(
             $method,
-            OpenAiProvider::url($path),
+            $requestUrl,
             $headers,
             $data
         );
+
+        return $apiProfile !== null
+            ? $apiProfile->prepareRequest($request, $operation)
+            : $request;
     }
 
     /**
@@ -51,6 +74,22 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
      */
     protected function parseResponseToModelMetadataList(Response $response): array
     {
+        $apiProfile = $this->getOpenAiApiProfile();
+        if ($apiProfile !== null) {
+            $operation = OpenAiApiOperation::LIST_MODELS;
+            if (!$apiProfile->supportsOperation($operation)) {
+                throw new RuntimeException(
+                    'The selected OpenAI API profile does not support listing models.'
+                );
+            }
+
+            $response = $apiProfile->normalizeResponse($response, $operation);
+            $profileModels = $apiProfile->parseModelMetadataList($response);
+            if ($profileModels !== null) {
+                return $profileModels;
+            }
+        }
+
         /** @var ModelsResponseData $responseData */
         $responseData = $response->getData();
         if (!isset($responseData['data']) || !$responseData['data']) {
@@ -285,6 +324,34 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
         usort($models, [$this, 'modelSortCallback']);
 
         return $models;
+    }
+
+    /**
+     * Separates alternate API profile model catalogs in the SDK cache.
+     *
+     * The standard API profile retains its existing cache key. Alternate
+     * profile identities are hashed so account identifiers and other profile
+     * details never appear in persistent cache keys.
+     *
+     * @since 1.1.0
+     *
+     * @return string The cache key prefix.
+     */
+    protected function getBaseCacheKey(): string
+    {
+        $baseCacheKey = parent::getBaseCacheKey();
+
+        $apiProfile = $this->getOpenAiApiProfile();
+
+        if ($apiProfile === null) {
+            return $baseCacheKey;
+        }
+
+        $profileCacheKey = $apiProfile->getCacheKey();
+
+        return $baseCacheKey
+            . '_profile_'
+            . substr(hash('sha256', $profileCacheKey), 0, 16);
     }
 
     /**

@@ -72,6 +72,16 @@ The provider uses the `OPENAI_API_KEY` environment variable for authentication. 
 putenv('OPENAI_API_KEY=your-api-key');
 ```
 
+## Extending OpenAI API profiles
+
+The provider supports alternate OpenAI API dialects without requiring a fork. A custom request authentication implementation can implement `OpenAiApiProfileAwareAuthenticationInterface` and return an `OpenAiApiProfileInterface` instance. The profile can adapt operation support, endpoint URLs, requests, responses, model metadata, and model-cache isolation while the authentication object remains responsible for credentials.
+
+The PHP AI Client currently validates replacement OpenAI authentication against its API-key DTO. Pass profile-aware authentication through `OpenAiApiProfileRequestAuthenticationAdapter` before registering it with `setProviderRequestAuthentication()`. The adapter only satisfies that registry compatibility check; request authentication and profile selection are delegated to the wrapped implementation.
+
+WordPress integrations may also supply or replace a profile with the `ai_provider_for_openai_api_profile` filter. Profile request changes are applied before authentication, and response normalization is applied only after a successful HTTP response. Because a profile can change where authenticated requests are sent, only trusted code should provide one.
+
+API-key authentication does not use a profile, so its existing request and cache behavior remains unchanged.
+
 ## License
 
 GPL-2.0-or-later
