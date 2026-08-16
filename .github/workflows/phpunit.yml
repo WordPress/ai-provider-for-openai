@@ -16,6 +16,7 @@ jobs:
   phpunit:
     name: PHPUnit (php-ai-client ${{ matrix.php-ai-client }})
     runs-on: ubuntu-24.04
+    if: ${{ github.repository == 'WordPress/ai-provider-for-openai' || github.event_name == 'pull_request' }}
     strategy:
       fail-fast: false
       matrix:
