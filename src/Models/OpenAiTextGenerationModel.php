@@ -757,8 +757,10 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
             isset($this->openAiFunctionNameMap[$safe])
         ) {
             $prefixLength = self::OPENAI_FUNCTION_NAME_MAX_LENGTH - self::OPENAI_FUNCTION_NAME_HASH_LENGTH - 1;
-            $safe = substr($safe, 0, $prefixLength) . '_' . substr(sha1($name), 0, self::OPENAI_FUNCTION_NAME_HASH_LENGTH);
-         }
+            $safe = substr($safe, 0, $prefixLength)
+                . '_'
+                . substr(sha1($name), 0, self::OPENAI_FUNCTION_NAME_HASH_LENGTH);
+        }
 
         $this->clientFunctionNameMap[$name] = $safe;
         $this->openAiFunctionNameMap[$safe] = $name;
