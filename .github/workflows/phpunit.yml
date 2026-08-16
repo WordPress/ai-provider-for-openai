@@ -49,4 +49,4 @@ jobs:
         run: composer update wordpress/php-ai-client --with-all-dependencies --no-interaction --no-progress --prefer-dist ${{ matrix.composer_options }}
 
       - name: Run PHPUnit
-        run: vendor/bin/phpunit --testsuite unit
+        run: composer test
