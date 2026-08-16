@@ -42,7 +42,7 @@ class OpenAiEmbeddingGenerationModelTest extends TestCase
 
     public function testGenerateEmbeddingResultSendsEmbeddingsApiRequest(): void
     {
-        $model = new class(
+        $model = new class (
             $this->createModelMetadata(),
             $this->createProviderMetadata()
         ) extends OpenAiEmbeddingGenerationModel {
@@ -66,7 +66,7 @@ class OpenAiEmbeddingGenerationModelTest extends TestCase
 
     public function testGenerateEmbeddingResultSendsBatchEmbeddingsApiRequest(): void
     {
-        $model = new class(
+        $model = new class (
             $this->createModelMetadata(),
             $this->createProviderMetadata()
         ) extends OpenAiEmbeddingGenerationModel {
@@ -92,7 +92,7 @@ class OpenAiEmbeddingGenerationModelTest extends TestCase
      */
     public function testPrepareGenerateEmbeddingsParamsRejectsInvalidInputs(array $input, string $message): void
     {
-        $model = new class(
+        $model = new class (
             $this->createModelMetadata(),
             $this->createProviderMetadata()
         ) extends OpenAiEmbeddingGenerationModel {
@@ -116,7 +116,10 @@ class OpenAiEmbeddingGenerationModelTest extends TestCase
             'empty list' => [[], 'The API requires at least one prompt.'],
             'non-list array' => [['first' => new MessagePart('Search text')], 'list of message parts'],
             'non-message part' => [[1], 'index 0 must be a MessagePart'],
-            'file part' => [[new MessagePart(new File('https://example.com/image.jpg', 'image/jpeg'))], 'index 0 must be a text part'],
+            'file part' => [
+                [new MessagePart(new File('https://example.com/image.jpg', 'image/jpeg'))],
+                'index 0 must be a text part',
+            ],
             'blank text part' => [[new MessagePart('   ')], 'index 0 must contain non-empty text'],
         ];
     }
