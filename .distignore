@@ -7,5 +7,7 @@
 /composer.json
 /composer.lock
 /phpcs.xml.dist
+/phpunit.xml.dist
 /phpstan.neon.dist
+/tests
 /vendor

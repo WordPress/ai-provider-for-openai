@@ -6,6 +6,7 @@ namespace WordPress\OpenAiAiProvider\Models;
 
 use WordPress\AiClient\Common\Exception\InvalidArgumentException;
 use WordPress\AiClient\Common\Exception\RuntimeException;
+use WordPress\AiClient\Common\Exception\TokenLimitReachedException;
 use WordPress\AiClient\Messages\DTO\Message;
 use WordPress\AiClient\Messages\DTO\MessagePart;
 use WordPress\AiClient\Messages\Enums\MessageRoleEnum;
@@ -49,12 +50,14 @@ use WordPress\OpenAiAiProvider\Provider\OpenAiProvider;
  *     output_tokens?: int,
  *     total_tokens?: int
  * }
+ * @phpstan-type IncompleteDetailsData array{reason?: string}
  * @phpstan-type ResponseData array{
  *     id?: string,
  *     status?: string,
  *     output?: list<OutputItemData>,
  *     output_text?: string,
- *     usage?: UsageData
+ *     usage?: UsageData,
+ *     incomplete_details?: IncompleteDetailsData|null
  * }
  */
 class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGenerationModelInterface
@@ -142,6 +145,16 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
             $params['top_p'] = $topP;
         }
 
+        $logprobs = $config->getLogprobs();
+        if ($logprobs === true) {
+            $params['include'] = ['message.output_text.logprobs'];
+        }
+
+        $topLogprobs = $config->getTopLogprobs();
+        if ($topLogprobs !== null) {
+            $params['top_logprobs'] = $topLogprobs;
+        }
+
         // Note: OpenAI does not support top_k parameter.
 
         $outputMimeType = $config->getOutputMimeType();
@@ -184,7 +197,63 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
             $params[$key] = $value;
         }
 
+        $this->validateSamplingParamsForReasoningEffort($params);
+
         return $params;
+    }
+
+    /**
+     * Validates that sampling parameters are not combined with an explicitly enabled reasoning effort.
+     *
+     * The model metadata advertises support for `temperature`, `top_p`, `logprobs`, and
+     * `top_logprobs` for reasoning models that run with `reasoning.effort` set to `none` by
+     * default (e.g. `gpt-5.2` and `gpt-5.4`), because the options apply in that default mode.
+     * The OpenAI API rejects these parameters as soon as reasoning is enabled, which the
+     * metadata cannot express conditionally. Since a reasoning effort can only be requested
+     * via the `reasoning` custom option, that combination is caught here before the API request
+     * is sent.
+     *
+     * @since 1.1.0
+     *
+     * @param array<string, mixed> $params The prepared parameters for the API request.
+     * @return void
+     * @throws InvalidArgumentException If sampling parameters are combined with an enabled reasoning effort.
+     */
+    protected function validateSamplingParamsForReasoningEffort(array $params): void
+    {
+        $reasoning = $params['reasoning'] ?? null;
+        if (!is_array($reasoning)) {
+            return;
+        }
+
+        $effort = $reasoning['effort'] ?? null;
+        if (!is_string($effort) || $effort === 'none') {
+            return;
+        }
+
+        $samplingParams = array_values(
+            array_intersect(['temperature', 'top_p', 'top_logprobs'], array_keys($params))
+        );
+        $include = $params['include'] ?? null;
+        if (
+            is_array($include)
+            && in_array('message.output_text.logprobs', $include, true)
+        ) {
+            $samplingParams[] = 'logprobs';
+        }
+        if (!$samplingParams) {
+            return;
+        }
+
+        throw new InvalidArgumentException(
+            sprintf(
+                'The parameter(s) "%s" cannot be combined with reasoning effort "%s" for model "%s". '
+                    . 'OpenAI Responses only support these sampling options when the reasoning effort is "none".',
+                implode('", "', $samplingParams),
+                $effort,
+                $this->metadata()->getId()
+            )
+        );
     }
 
     /**
@@ -462,6 +531,25 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
     {
         /** @var ResponseData $responseData */
         $responseData = $response->getData();
+
+        // Check for token limit before processing output. When max_output_tokens is reached, OpenAI returns
+        // status 'incomplete' with incomplete_details.reason 'max_output_tokens'. The output array may be
+        // empty in this case, so this check must happen before the output validation below.
+        $status = $responseData['status'] ?? 'completed';
+        if ($status === 'incomplete') {
+            $incompleteDetails = $responseData['incomplete_details'] ?? null;
+            $reason = is_array($incompleteDetails) ? ($incompleteDetails['reason'] ?? '') : '';
+            if ($reason === 'max_output_tokens') {
+                $maxTokens = $this->getConfig()->getMaxTokens();
+                throw new TokenLimitReachedException(
+                    sprintf(
+                        'Generation stopped due to token limit with reason "%s".',
+                        $reason
+                    ),
+                    $maxTokens
+                );
+            }
+        }
 
         if (!isset($responseData['output']) || !$responseData['output']) {
             throw ResponseException::fromMissingData($this->providerMetadata()->getName(), 'output');
