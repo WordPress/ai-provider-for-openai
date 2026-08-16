@@ -14,7 +14,9 @@ use WordPress\AiClient\Providers\Enums\ProviderTypeEnum;
 use WordPress\AiClient\Providers\Http\Enums\RequestAuthenticationMethod;
 use WordPress\AiClient\Providers\Models\Contracts\ModelInterface;
 use WordPress\AiClient\Providers\Models\DTO\ModelMetadata;
+use WordPress\AiClient\Providers\Models\EmbeddingGeneration\Contracts\EmbeddingGenerationModelInterface;
 use WordPress\OpenAiAiProvider\Metadata\OpenAiModelMetadataDirectory;
+use WordPress\OpenAiAiProvider\Models\OpenAiEmbeddingGenerationModel;
 use WordPress\OpenAiAiProvider\Models\OpenAiImageGenerationModel;
 use WordPress\OpenAiAiProvider\Models\OpenAiTextGenerationModel;
 
@@ -52,6 +54,13 @@ class OpenAiProvider extends AbstractApiProvider
             if ($capability->isImageGeneration()) {
                 return new OpenAiImageGenerationModel($modelMetadata, $providerMetadata);
             }
+            // Embedding generation support was added in 1.4.0.
+            if (
+                $capability->isEmbeddingGeneration() &&
+                interface_exists(EmbeddingGenerationModelInterface::class)
+            ) {
+                return new OpenAiEmbeddingGenerationModel($modelMetadata, $providerMetadata);
+            }
             if ($capability->isTextToSpeechConversion()) {
                 // TODO: Implement OpenAiTextToSpeechConversionModel.
                 throw new RuntimeException(
@@ -72,12 +81,12 @@ class OpenAiProvider extends AbstractApiProvider
      */
     protected static function createProviderMetadata(): ProviderMetadata
     {
-        $description = 'Text and image generation with GPT and Dall-E.';
+        $description = 'Text, image, and embedding generation with OpenAI.';
 
         // For WordPress, we should translate the description.
         if (function_exists('__')) {
             // phpcs:ignore Generic.Files.LineLength.TooLong
-            $translatedDescription = __('Text and image generation with GPT and Dall-E.', 'ai-provider-for-openai');
+            $translatedDescription = __('Text, image, and embedding generation with OpenAI.', 'ai-provider-for-openai');
             if (is_string($translatedDescription)) {
                 $description = $translatedDescription;
             }
