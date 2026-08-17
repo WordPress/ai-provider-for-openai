@@ -21,7 +21,7 @@ use WordPress\OpenAiAiProvider\Provider\OpenAiProvider;
 /**
  * Class for an OpenAI embedding generation model using the Embeddings API.
  *
- * @since n.e.x.t
+ * @since 1.1.0
  *
  * @phpstan-type EmbeddingData array{embedding?: list<float|int>, index?: int}
  * @phpstan-type UsageData array{prompt_tokens?: int, total_tokens?: int}
@@ -32,7 +32,7 @@ class OpenAiEmbeddingGenerationModel extends AbstractApiBasedModel implements Em
     /**
      * {@inheritDoc}
      *
-     * @since n.e.x.t
+     * @since 1.1.0
      *
      * @param list<MessagePart> $input The inputs to generate embeddings for.
      * @return EmbeddingResult The embedding result.
@@ -59,7 +59,7 @@ class OpenAiEmbeddingGenerationModel extends AbstractApiBasedModel implements Em
     /**
      * Prepares the given prompts and model configuration into API request parameters.
      *
-     * @since n.e.x.t
+     * @since 1.1.0
      *
      * @param list<MessagePart> $input The inputs to generate embeddings for.
      * @return array<string, mixed> The parameters for the API request.
@@ -124,7 +124,7 @@ class OpenAiEmbeddingGenerationModel extends AbstractApiBasedModel implements Em
     /**
      * {@inheritDoc}
      *
-     * @since n.e.x.t
+     * @since 1.1.0
      *
      * @param HttpMethodEnum                    $method The HTTP method.
      * @param string                            $path The request path.
@@ -150,7 +150,7 @@ class OpenAiEmbeddingGenerationModel extends AbstractApiBasedModel implements Em
     /**
      * Parses the response from the API endpoint to an embedding result.
      *
-     * @since n.e.x.t
+     * @since 1.1.0
      *
      * @param Response $response The response from the API endpoint.
      * @return EmbeddingResult The parsed embedding result.
