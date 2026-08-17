@@ -9,5 +9,6 @@
 /phpcs.xml.dist
 /phpunit.xml.dist
 /phpstan.neon.dist
+/README.md
 /tests
 /vendor
