@@ -15,7 +15,9 @@ use WordPress\AiClient\Providers\Enums\ProviderTypeEnum;
 use WordPress\AiClient\Providers\Http\Enums\RequestAuthenticationMethod;
 use WordPress\AiClient\Providers\Models\Contracts\ModelInterface;
 use WordPress\AiClient\Providers\Models\DTO\ModelMetadata;
+use WordPress\AiClient\Providers\Models\EmbeddingGeneration\Contracts\EmbeddingGenerationModelInterface;
 use WordPress\OpenAiAiProvider\Metadata\OpenAiModelMetadataDirectory;
+use WordPress\OpenAiAiProvider\Models\OpenAiEmbeddingGenerationModel;
 use WordPress\OpenAiAiProvider\Models\OpenAiImageGenerationModel;
 use WordPress\OpenAiAiProvider\Models\OpenAiTextGenerationModel;
 use WordPress\OpenAiAiProvider\Models\OpenAiTextToSpeechConversionModel;
@@ -54,6 +56,13 @@ class OpenAiProvider extends AbstractApiProvider
             if ($capability->isImageGeneration()) {
                 return new OpenAiImageGenerationModel($modelMetadata, $providerMetadata);
             }
+            // Embedding generation support was added in 1.4.0.
+            if (
+                $capability->isEmbeddingGeneration() &&
+                interface_exists(EmbeddingGenerationModelInterface::class)
+            ) {
+                return new OpenAiEmbeddingGenerationModel($modelMetadata, $providerMetadata);
+            }
             if ($capability->isTextToSpeechConversion()) {
                 return new OpenAiTextToSpeechConversionModel($modelMetadata, $providerMetadata);
             }
@@ -83,9 +92,9 @@ class OpenAiProvider extends AbstractApiProvider
             // For WordPress, we should translate the description.
             if (function_exists('__')) {
                 // phpcs:ignore Generic.Files.LineLength.TooLong
-                $providerMetadataArgs[] = __('Text, image, and speech generation with GPT and Dall-E.', 'ai-provider-for-openai');
+                $providerMetadataArgs[] = __('Text, image, embedding and speech generation with GPT and Dall-E.', 'ai-provider-for-openai');
             } else {
-                $providerMetadataArgs[] = 'Text, image, and speech generation with GPT and Dall-E.';
+                $providerMetadataArgs[] = 'Text, image, embedding and speech generation with GPT and Dall-E.';
             }
         }
         // Provider logoPath support was added in 1.3.0.
