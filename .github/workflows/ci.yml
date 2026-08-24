@@ -13,12 +13,13 @@ jobs:
   quality:
     name: Lint, static analysis, and distribution
     runs-on: ubuntu-24.04
+    if: ${{ github.repository == 'WordPress/ai-provider-for-openai' || github.event_name == 'pull_request' }}
     permissions:
       contents: read
     timeout-minutes: 15
     steps:
       - name: Checkout repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Set up PHP
@@ -46,8 +47,9 @@ jobs:
           test ! -e "$wporg_stage/phpunit.xml.dist"
           test -e "$wporg_stage/plugin.php"
   phpunit:
-    name: PHPUnit on PHP ${{ matrix.php }}
+    name: PHPUnit (PHP ${{ matrix.php }}, ${{ matrix.dependencies }} dependencies)
     runs-on: ubuntu-24.04
+    if: ${{ github.repository == 'WordPress/ai-provider-for-openai' || github.event_name == 'pull_request' }}
     permissions:
       contents: read
     timeout-minutes: 15
@@ -55,9 +57,15 @@ jobs:
       fail-fast: false
       matrix:
         php: ['7.4', '8.0', '8.1', '8.2', '8.3', '8.4']
+        dependencies: [lowest, latest]
+        include:
+          - dependencies: lowest
+            composer_options: --prefer-lowest
+          - dependencies: latest
+            composer_options: ''
     steps:
       - name: Checkout repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Set up PHP
@@ -65,7 +73,9 @@ jobs:
         with:
           php-version: ${{ matrix.php }}
           coverage: none
+      - name: Configure Composer platform
+        run: composer config platform.php ${{ matrix.php }}
       - name: Install Composer dependencies
-        uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # v4.0.0
+        run: composer update wordpress/php-ai-client --with-all-dependencies --no-interaction --no-progress --prefer-dist ${{ matrix.composer_options }}
       - name: Run PHPUnit
         run: composer test
