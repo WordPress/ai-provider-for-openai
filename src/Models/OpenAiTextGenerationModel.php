@@ -42,14 +42,18 @@ use WordPress\OpenAiAiProvider\Provider\OpenAiProvider;
  * @phpstan-type OutputItemData array{
  *     type: string,
  *     id?: string,
+ *     encrypted_content?: string,
+ *     summary?: list<array<string, mixed>>,
  *     role?: string,
  *     status?: string,
  *     content?: list<OutputContentData>
  * }
+ * @phpstan-type OutputTokenDetailsData array{reasoning_tokens?: int}
  * @phpstan-type UsageData array{
  *     input_tokens?: int,
  *     output_tokens?: int,
- *     total_tokens?: int
+ *     total_tokens?: int,
+ *     output_tokens_details?: OutputTokenDetailsData
  * }
  * @phpstan-type IncompleteDetailsData array{reason?: string}
  * @phpstan-type ResponseData array{
@@ -409,6 +413,10 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
             }
 
             $content[] = $partData;
+        }
+
+        if (empty($content)) {
+            return null;
         }
 
         return [
