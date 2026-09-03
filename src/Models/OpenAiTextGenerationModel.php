@@ -726,7 +726,7 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
      * JSON for round-trip; exposes the joined summary text as the part's
      * content.
      *
-     * @since 1.1.0
+     * @since n.e.x.t
      *
      * @param array<string, mixed> $outputItem The reasoning output item from the API response.
      * @return MessagePart|null The reasoning part, or null if there is nothing to round-trip.
@@ -770,7 +770,7 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
     /**
      * Builds a TokenUsage DTO from the API usage block.
      *
-     * @since 1.1.0
+     * @since n.e.x.t
      *
      * @param array<string, mixed> $usage The usage block from the API response.
      * @return TokenUsage The token usage DTO.
