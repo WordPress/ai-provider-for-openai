@@ -1,12 +1,12 @@
 === AI Provider for OpenAI ===
-Contributors: wordpressdotorg
-Tags: ai, openai, gpt, artificial-intelligence, connector
+Contributors:      wordpressdotorg
+Tags:              ai, openai, gpt, artificial-intelligence, connector
 Requires at least: 6.9
-Tested up to: 7.0
-Stable tag: 1.0.2
-Requires PHP: 7.4
-License: GPL-2.0-or-later
-License URI: https://www.gnu.org/licenses/gpl-2.0.html
+Tested up to:      7.1
+Stable tag:        1.1.0
+Requires PHP:      7.4
+License:           GPL-2.0-or-later
+License URI:       https://www.gnu.org/licenses/gpl-2.0.html
 
 AI Provider for OpenAI for the PHP AI Client SDK.
 
@@ -48,6 +48,29 @@ Visit the [OpenAI Platform](https://platform.openai.com/) to create an account a
 No, this plugin requires the PHP AI Client plugin to be installed and activated. It provides the OpenAI-specific implementation that the PHP AI Client uses.
 
 == Changelog ==
+
+= 1.1.0 - 2026-08-17 =
+
+**Added**
+
+* Support for OpenAI embedding models, including batch inputs, custom dimensions, token usage, and result metadata ([#34](https://github.com/WordPress/ai-provider-for-openai/pull/34)).
+* Support for fine-tuned OpenAI models by deriving capabilities from their underlying base models ([#17](https://github.com/WordPress/ai-provider-for-openai/pull/17)).
+* Support for editing and refining generated images using reference images and OpenAI’s image-editing endpoint ([#29](https://github.com/WordPress/ai-provider-for-openai/pull/29)).
+* A `TokenLimitReachedException` when OpenAI responses are incomplete because the maximum output-token limit was reached ([#10](https://github.com/WordPress/ai-provider-for-openai/pull/10)).
+
+**Changed**
+
+* Made sampling-option capabilities model-aware for reasoning models, added Responses API support for log probabilities, and reject incompatible sampling and reasoning configurations before sending a request ([#40](https://github.com/WordPress/ai-provider-for-openai/pull/40)).
+* Bumped WordPress tested-up-to version 7.1 ([#43](https://github.com/WordPress/ai-provider-for-openai/pull/43)).
+
+**Fixed**
+
+* Function-call name handling for names that do not meet OpenAI’s naming requirements, while preserving the original PHP AI Client function names returned to callers ([#31](https://github.com/WordPress/ai-provider-for-openai/pull/31)).
+
+= 1.0.3 =
+
+* Add a provider logo to the metadata if the client version > 1.3.0 ([#19](https://github.com/WordPress/ai-provider-for-openai/pull/19)).
+* Fix mapping of models that support multimodal inputs ([#22](https://github.com/WordPress/ai-provider-for-openai/pull/22)).
 
 = 1.0.2 =
 

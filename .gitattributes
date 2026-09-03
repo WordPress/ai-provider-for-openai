@@ -9,4 +9,8 @@ plugin.php export-ignore
 /.distignore export-ignore
 /.wordpress-org export-ignore
 /phpcs.xml.dist export-ignore
+/phpunit.xml.dist export-ignore
 /phpstan.neon.dist export-ignore
+/tests export-ignore
+
+/README.md export-ignore

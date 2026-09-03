@@ -1,17 +1,17 @@
 <?php
 
 /**
- * Plugin Name: AI Provider for OpenAI
- * Plugin URI: https://github.com/WordPress/ai-provider-for-openai
- * Description: AI Provider for OpenAI for the WordPress AI Client.
+ * Plugin Name:       AI Provider for OpenAI
+ * Plugin URI:        https://github.com/WordPress/ai-provider-for-openai
+ * Description:       AI Provider for OpenAI for the WordPress AI Client.
  * Requires at least: 6.9
- * Requires PHP: 7.4
- * Version: 1.0.2
- * Author: WordPress AI Team
- * Author URI: https://make.wordpress.org/ai/
- * License: GPL-2.0-or-later
- * License URI: https://spdx.org/licenses/GPL-2.0-or-later.html
- * Text Domain: ai-provider-for-openai
+ * Requires PHP:      7.4
+ * Version:           1.1.0
+ * Author:            WordPress AI Team
+ * Author URI:        https://make.wordpress.org/ai/
+ * License:           GPL-2.0-or-later
+ * License URI:       https://spdx.org/licenses/GPL-2.0-or-later.html
+ * Text Domain:       ai-provider-for-openai
  *
  * @package WordPress\OpenAiAiProvider
  */

@@ -6,6 +6,7 @@ namespace WordPress\OpenAiAiProvider\Models;
 
 use WordPress\AiClient\Common\Exception\InvalidArgumentException;
 use WordPress\AiClient\Common\Exception\RuntimeException;
+use WordPress\AiClient\Common\Exception\TokenLimitReachedException;
 use WordPress\AiClient\Messages\DTO\Message;
 use WordPress\AiClient\Messages\DTO\MessagePart;
 use WordPress\AiClient\Messages\Enums\MessageRoleEnum;
@@ -49,16 +50,35 @@ use WordPress\OpenAiAiProvider\Provider\OpenAiProvider;
  *     output_tokens?: int,
  *     total_tokens?: int
  * }
+ * @phpstan-type IncompleteDetailsData array{reason?: string}
  * @phpstan-type ResponseData array{
  *     id?: string,
  *     status?: string,
  *     output?: list<OutputItemData>,
  *     output_text?: string,
- *     usage?: UsageData
+ *     usage?: UsageData,
+ *     incomplete_details?: IncompleteDetailsData|null
  * }
  */
 class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGenerationModelInterface
 {
+    /**
+     * Maps OpenAI-safe function names back to the original client tool names.
+     *
+     * @var array<string, string>
+     */
+    private array $openAiFunctionNameMap = [];
+
+    /**
+     * Maps original client tool names to OpenAI-safe function names.
+     *
+     * @var array<string, string>
+     */
+    private array $clientFunctionNameMap = [];
+
+    private const OPENAI_FUNCTION_NAME_MAX_LENGTH = 64;
+    private const OPENAI_FUNCTION_NAME_HASH_LENGTH = 8;
+
     /**
      * {@inheritDoc}
      *
@@ -125,6 +145,16 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
             $params['top_p'] = $topP;
         }
 
+        $logprobs = $config->getLogprobs();
+        if ($logprobs === true) {
+            $params['include'] = ['message.output_text.logprobs'];
+        }
+
+        $topLogprobs = $config->getTopLogprobs();
+        if ($topLogprobs !== null) {
+            $params['top_logprobs'] = $topLogprobs;
+        }
+
         // Note: OpenAI does not support top_k parameter.
 
         $outputMimeType = $config->getOutputMimeType();
@@ -167,7 +197,63 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
             $params[$key] = $value;
         }
 
+        $this->validateSamplingParamsForReasoningEffort($params);
+
         return $params;
+    }
+
+    /**
+     * Validates that sampling parameters are not combined with an explicitly enabled reasoning effort.
+     *
+     * The model metadata advertises support for `temperature`, `top_p`, `logprobs`, and
+     * `top_logprobs` for reasoning models that run with `reasoning.effort` set to `none` by
+     * default (e.g. `gpt-5.2` and `gpt-5.4`), because the options apply in that default mode.
+     * The OpenAI API rejects these parameters as soon as reasoning is enabled, which the
+     * metadata cannot express conditionally. Since a reasoning effort can only be requested
+     * via the `reasoning` custom option, that combination is caught here before the API request
+     * is sent.
+     *
+     * @since 1.1.0
+     *
+     * @param array<string, mixed> $params The prepared parameters for the API request.
+     * @return void
+     * @throws InvalidArgumentException If sampling parameters are combined with an enabled reasoning effort.
+     */
+    protected function validateSamplingParamsForReasoningEffort(array $params): void
+    {
+        $reasoning = $params['reasoning'] ?? null;
+        if (!is_array($reasoning)) {
+            return;
+        }
+
+        $effort = $reasoning['effort'] ?? null;
+        if (!is_string($effort) || $effort === 'none') {
+            return;
+        }
+
+        $samplingParams = array_values(
+            array_intersect(['temperature', 'top_p', 'top_logprobs'], array_keys($params))
+        );
+        $include = $params['include'] ?? null;
+        if (
+            is_array($include)
+            && in_array('message.output_text.logprobs', $include, true)
+        ) {
+            $samplingParams[] = 'logprobs';
+        }
+        if (!$samplingParams) {
+            return;
+        }
+
+        throw new InvalidArgumentException(
+            sprintf(
+                'The parameter(s) "%s" cannot be combined with reasoning effort "%s" for model "%s". '
+                    . 'OpenAI Responses only support these sampling options when the reasoning effort is "none".',
+                implode('", "', $samplingParams),
+                $effort,
+                $this->metadata()->getId()
+            )
+        );
     }
 
     /**
@@ -360,10 +446,16 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
                     'The function_call typed message part must contain a function call.'
                 );
             }
+            $functionName = $functionCall->getName();
+            if ($functionName === null) {
+                throw new RuntimeException(
+                    'The function_call typed message part must contain a function name.'
+                );
+            }
             return [
                 'type' => 'function_call',
                 'call_id' => $functionCall->getId(),
-                'name' => $functionCall->getName(),
+                'name' => $this->openAiFunctionName($functionName),
                 'arguments' => json_encode($functionCall->getArgs()),
             ];
         }
@@ -402,12 +494,15 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
         ?WebSearch $webSearch
     ): array {
         $tools = [];
+        $this->openAiFunctionNameMap = [];
+        $this->clientFunctionNameMap = [];
 
         if (is_array($functionDeclarations)) {
             foreach ($functionDeclarations as $functionDeclaration) {
+                $openAiName = $this->openAiFunctionName($functionDeclaration->getName());
                 $tools[] = [
                     'type' => 'function',
-                    'name' => $functionDeclaration->getName(),
+                    'name' => $openAiName,
                     'description' => $functionDeclaration->getDescription(),
                     'parameters' => $functionDeclaration->getParameters(),
                 ];
@@ -436,6 +531,25 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
     {
         /** @var ResponseData $responseData */
         $responseData = $response->getData();
+
+        // Check for token limit before processing output. When max_output_tokens is reached, OpenAI returns
+        // status 'incomplete' with incomplete_details.reason 'max_output_tokens'. The output array may be
+        // empty in this case, so this check must happen before the output validation below.
+        $status = $responseData['status'] ?? 'completed';
+        if ($status === 'incomplete') {
+            $incompleteDetails = $responseData['incomplete_details'] ?? null;
+            $reason = is_array($incompleteDetails) ? ($incompleteDetails['reason'] ?? '') : '';
+            if ($reason === 'max_output_tokens') {
+                $maxTokens = $this->getConfig()->getMaxTokens();
+                throw new TokenLimitReachedException(
+                    sprintf(
+                        'Generation stopped due to token limit with reason "%s".',
+                        $reason
+                    ),
+                    $maxTokens
+                );
+            }
+        }
 
         if (!isset($responseData['output']) || !$responseData['output']) {
             throw ResponseException::fromMissingData($this->providerMetadata()->getName(), 'output');
@@ -607,7 +721,7 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
 
         $functionCall = new FunctionCall(
             $outputItem['call_id'],
-            $outputItem['name'],
+            $this->originalFunctionName($outputItem['name']),
             $args
         );
 
@@ -615,6 +729,56 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
         $message = new Message(MessageRoleEnum::model(), [$part]);
 
         return new Candidate($message, FinishReasonEnum::toolCalls());
+    }
+
+    /**
+     * Converts a PHP AI Client function name to an OpenAI-safe function name.
+     *
+     * @since 1.0.0
+     *
+     * @param string $name Original function name.
+     * @return string OpenAI-safe function name.
+     */
+    private function openAiFunctionName(string $name): string
+    {
+        if (isset($this->clientFunctionNameMap[$name])) {
+            return $this->clientFunctionNameMap[$name];
+        }
+
+        $safe = preg_replace('/[^a-zA-Z0-9_-]+/', '_', $name) ?? '';
+        $safe = trim($safe, '_-');
+        if ($safe === '') {
+            $safe = 'tool';
+        }
+
+        if (
+            $safe !== $name ||
+            strlen($safe) > self::OPENAI_FUNCTION_NAME_MAX_LENGTH ||
+            isset($this->openAiFunctionNameMap[$safe])
+        ) {
+            $prefixLength = self::OPENAI_FUNCTION_NAME_MAX_LENGTH - self::OPENAI_FUNCTION_NAME_HASH_LENGTH - 1;
+            $safe = substr($safe, 0, $prefixLength)
+                . '_'
+                . substr(sha1($name), 0, self::OPENAI_FUNCTION_NAME_HASH_LENGTH);
+        }
+
+        $this->clientFunctionNameMap[$name] = $safe;
+        $this->openAiFunctionNameMap[$safe] = $name;
+
+        return $safe;
+    }
+
+    /**
+     * Restores the original PHP AI Client function name from an OpenAI function call.
+     *
+     * @since 1.0.0
+     *
+     * @param string $name OpenAI function name.
+     * @return string Original function name when known.
+     */
+    private function originalFunctionName(string $name): string
+    {
+        return $this->openAiFunctionNameMap[$name] ?? $name;
     }
 
     /**
@@ -663,7 +827,7 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
             return new MessagePart(
                 new FunctionCall(
                     $contentItem['call_id'],
-                    $contentItem['name'],
+                    $this->originalFunctionName($contentItem['name']),
                     $args
                 )
             );
