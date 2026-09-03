@@ -292,7 +292,7 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
      * Decodes the JSON signature blob back into the original
      * {id, encrypted_content, summary} shape required by the Responses API.
      *
-     * @since 1.1.0
+     * @since n.e.x.t
      *
      * @param Message $message The message to inspect.
      * @return list<array<string, mixed>> Reasoning items to send as top-level input.
