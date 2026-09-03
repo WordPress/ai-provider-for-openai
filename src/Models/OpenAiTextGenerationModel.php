@@ -289,9 +289,6 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
     /**
      * Extracts top-level reasoning items from a message's thought-channel parts.
      *
-     * Decodes the JSON signature blob back into the original
-     * {id, encrypted_content, summary} shape required by the Responses API.
-     *
      * @since n.e.x.t
      *
      * @param Message $message The message to inspect.
@@ -309,22 +306,26 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
                 continue;
             }
 
-            $item = ['type' => 'reasoning'];
             $decoded = json_decode($signature, true);
-            if (is_array($decoded)) {
-                if (isset($decoded['id']) && is_string($decoded['id'])) {
-                    $item['id'] = $decoded['id'];
-                }
-                if (isset($decoded['encrypted_content']) && is_string($decoded['encrypted_content'])) {
-                    $item['encrypted_content'] = $decoded['encrypted_content'];
-                }
-                if (isset($decoded['summary']) && is_array($decoded['summary'])) {
-                    $item['summary'] = $decoded['summary'];
-                }
-            } else {
-                $item['encrypted_content'] = $signature;
+            if (
+                !is_array($decoded)
+                || !isset($decoded['id'])
+                || !is_string($decoded['id'])
+                || $decoded['id'] === ''
+            ) {
+                continue;
             }
-            if (!isset($item['summary'])) {
+
+            $item = [
+                'type' => 'reasoning',
+                'id' => $decoded['id'],
+            ];
+            if (isset($decoded['encrypted_content']) && is_string($decoded['encrypted_content'])) {
+                $item['encrypted_content'] = $decoded['encrypted_content'];
+            }
+            if (isset($decoded['summary']) && is_array($decoded['summary'])) {
+                $item['summary'] = $decoded['summary'];
+            } else {
                 $item['summary'] = [];
             }
             $items[] = $item;
@@ -659,8 +660,8 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
             );
             if ($candidate !== null) {
                 $candidates[] = $candidate;
-                $pendingReasoningParts = [];
             }
+            $pendingReasoningParts = [];
         }
 
         $id = isset($responseData['id']) && is_string($responseData['id']) ? $responseData['id'] : '';
@@ -722,10 +723,6 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
     /**
      * Parses a reasoning output item into a thought-channel MessagePart.
      *
-     * Packs id/encrypted_content/summary into the part's thoughtSignature as
-     * JSON for round-trip; exposes the joined summary text as the part's
-     * content.
-     *
      * @since n.e.x.t
      *
      * @param array<string, mixed> $outputItem The reasoning output item from the API response.
@@ -733,23 +730,24 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
      */
     protected function parseReasoningOutputToPart(array $outputItem): ?MessagePart
     {
+        if (
+            !isset($outputItem['id'])
+            || !is_string($outputItem['id'])
+            || $outputItem['id'] === ''
+        ) {
+            return null;
+        }
+
         $summary = isset($outputItem['summary']) && is_array($outputItem['summary'])
             ? $outputItem['summary']
             : [];
 
-        $signaturePayload = [];
-        if (isset($outputItem['id']) && is_string($outputItem['id'])) {
-            $signaturePayload['id'] = $outputItem['id'];
-        }
+        $signaturePayload = [
+            'id' => $outputItem['id'],
+            'summary' => $summary,
+        ];
         if (isset($outputItem['encrypted_content']) && is_string($outputItem['encrypted_content'])) {
             $signaturePayload['encrypted_content'] = $outputItem['encrypted_content'];
-        }
-        if (!empty($summary)) {
-            $signaturePayload['summary'] = $summary;
-        }
-
-        if (empty($signaturePayload)) {
-            return null;
         }
 
         $signature = json_encode($signaturePayload);
@@ -757,14 +755,14 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
             return null;
         }
 
-        $summaryText = '';
+        $summaryTexts = [];
         foreach ($summary as $summaryItem) {
             if (is_array($summaryItem) && isset($summaryItem['text']) && is_string($summaryItem['text'])) {
-                $summaryText .= $summaryItem['text'];
+                $summaryTexts[] = $summaryItem['text'];
             }
         }
 
-        return new MessagePart($summaryText, MessagePartChannelEnum::thought(), $signature);
+        return new MessagePart(implode("\n", $summaryTexts), MessagePartChannelEnum::thought(), $signature);
     }
 
     /**
