@@ -89,6 +89,32 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
     /**
      * {@inheritDoc}
      *
+     * Avoids a live `GET /models` round trip when the caller already knows the explicit OpenAI model ID and that ID
+     * classifies as a text generation model. Image, embedding, text-to-speech, and unrecognized model IDs still fall
+     * back to listing models so they receive full capability and option metadata from the provider response.
+     *
+     * @since n.e.x.t
+     *
+     * @param list<string> $modelIds The explicit model IDs.
+     * @return array<string, ModelMetadata> Map of model ID to explicit model metadata.
+     */
+    protected function createModelMetadataForExplicitModelIds(array $modelIds): array
+    {
+        return array_filter(
+            $this->createModelMetadataMap($modelIds),
+            static function (ModelMetadata $metadata): bool {
+                return in_array(
+                    CapabilityEnum::textGeneration(),
+                    $metadata->getSupportedCapabilities(),
+                    true
+                );
+            }
+        );
+    }
+
+    /**
+     * {@inheritDoc}
+     *
      * @since 1.0.0
      */
     protected function parseResponseToModelMetadataList(Response $response): array
@@ -99,6 +125,30 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
             throw ResponseException::fromMissingData('OpenAI', 'data');
         }
 
+        $modelIds = array_map(
+            static function (array $modelData): string {
+                return $modelData['id'];
+            },
+            (array) $responseData['data']
+        );
+
+        $models = array_values($this->createModelMetadataMap($modelIds));
+
+        usort($models, [$this, 'modelSortCallback']);
+
+        return $models;
+    }
+
+    /**
+     * Creates model metadata for the given model IDs, using the shared OpenAI model ID classifier.
+     *
+     * @since n.e.x.t
+     *
+     * @param list<string> $modelIds The model IDs.
+     * @return array<string, ModelMetadata> Map of model ID to model metadata.
+     */
+    private function createModelMetadataMap(array $modelIds): array
+    {
         $allModalityCombinationsWithText = [
             [ModalityEnum::text()],
             [ModalityEnum::text(), ModalityEnum::image()],
@@ -261,7 +311,12 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
             new SupportedOption(OptionEnum::customOptions()),
         ];
 
-        $modelsData = (array) $responseData['data'];
+        $modelsData = array_map(
+            static function (string $modelId): array {
+                return ['id' => $modelId];
+            },
+            $modelIds
+        );
 
         $models = array_values(
             array_map(
@@ -361,9 +416,12 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
             )
         );
 
-        usort($models, [$this, 'modelSortCallback']);
+        $modelsMetadata = [];
+        foreach ($models as $model) {
+            $modelsMetadata[$model->getId()] = $model;
+        }
 
-        return $models;
+        return $modelsMetadata;
     }
 
     /**
