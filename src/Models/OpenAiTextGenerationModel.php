@@ -289,7 +289,7 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
     /**
      * Extracts top-level reasoning items from a message's thought-channel parts.
      *
-     * @since n.e.x.t
+     * @since 1.2.0
      *
      * @param Message $message The message to inspect.
      * @return list<array<string, mixed>> Reasoning items to send as top-level input.
@@ -723,7 +723,7 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
     /**
      * Parses a reasoning output item into a thought-channel MessagePart.
      *
-     * @since n.e.x.t
+     * @since 1.2.0
      *
      * @param array<string, mixed> $outputItem The reasoning output item from the API response.
      * @return MessagePart|null The reasoning part, or null if there is nothing to round-trip.
@@ -768,7 +768,7 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
     /**
      * Builds a TokenUsage DTO from the API usage block.
      *
-     * @since n.e.x.t
+     * @since 1.2.0
      *
      * @param array<string, mixed> $usage The usage block from the API response.
      * @return TokenUsage The token usage DTO.
