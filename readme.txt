@@ -49,6 +49,18 @@ No, this plugin requires the PHP AI Client plugin to be installed and activated.
 
 == Changelog ==
 
+= 1.2.0 - 2026-09-21 =
+
+**Added**
+
+* Support for text to speech conversion ([#42](https://github.com/WordPress/ai-provider-for-openai/pull/42)).
+* PHPUnit CI matrix for `wordpress/php-ai-client` versions 1.3.1 and 1.4.0 ([#39](https://github.com/WordPress/ai-provider-for-openai/pull/39)).
+* WordPress Playground preview blueprint ([#46](https://github.com/WordPress/ai-provider-for-openai/pull/46)).
+
+**Changed**
+
+* Preserve reasoning items and reasoning token usage across multi-turn Responses API calls ([#26](https://github.com/WordPress/ai-provider-for-openai/pull/26)).
+
 = 1.1.0 - 2026-08-17 =
 
 **Added**
