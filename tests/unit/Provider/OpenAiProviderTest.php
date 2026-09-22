@@ -34,7 +34,7 @@ class OpenAiProviderTest extends TestCase
     {
         $this->assertSame('https://api.openai.com/v1', OpenAiProvider::url());
         $this->assertSame('https://api.openai.com/v1/models', OpenAiProvider::url('models'));
-        $this->assertSame('https://api.openai.com/v1/chat/completions', OpenAiProvider::url('/chat/completions'));
+        $this->assertSame('https://api.openai.com/v1/responses', OpenAiProvider::url('/responses'));
     }
 
     /**
