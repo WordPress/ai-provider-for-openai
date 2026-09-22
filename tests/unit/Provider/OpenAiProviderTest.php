@@ -176,6 +176,44 @@ class OpenAiProviderTest extends TestCase
     }
 
     /**
+     * Tests that createModel skips unhandled capabilities before reaching a supported one.
+     *
+     * @return void
+     */
+    public function testCreateModelSkipsUnhandledCapabilities(): void
+    {
+        $modelMetadata = new ModelMetadata(
+            'gpt-4o',
+            'gpt-4o',
+            [CapabilityEnum::chatHistory(), CapabilityEnum::textGeneration()],
+            []
+        );
+
+        $model = $this->createModelViaProvider($modelMetadata);
+
+        $this->assertInstanceOf(OpenAiTextGenerationModel::class, $model);
+    }
+
+    /**
+     * Tests that createModel instantiates the first matching capability when multiple supported capabilities exist.
+     *
+     * @return void
+     */
+    public function testCreateModelSelectsFirstMatchingCapability(): void
+    {
+        $modelMetadata = new ModelMetadata(
+            'hybrid-model',
+            'hybrid-model',
+            [CapabilityEnum::imageGeneration(), CapabilityEnum::textGeneration()],
+            []
+        );
+
+        $model = $this->createModelViaProvider($modelMetadata);
+
+        $this->assertInstanceOf(OpenAiImageGenerationModel::class, $model);
+    }
+
+    /**
      * Tests that createModel throws RuntimeException when unsupported capabilities are provided.
      *
      * @return void
@@ -185,12 +223,12 @@ class OpenAiProviderTest extends TestCase
         $modelMetadata = new ModelMetadata(
             'unsupported-model',
             'unsupported-model',
-            [CapabilityEnum::speechGeneration()],
+            [CapabilityEnum::chatHistory()],
             []
         );
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unsupported model capabilities: speech_generation');
+        $this->expectExceptionMessage('Unsupported model capabilities: chat_history');
 
         $this->createModelViaProvider($modelMetadata);
     }
