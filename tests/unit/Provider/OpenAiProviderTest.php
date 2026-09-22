@@ -103,7 +103,7 @@ class OpenAiProviderTest extends TestCase
         $modelMetadata = new ModelMetadata(
             'gpt-4o',
             'gpt-4o',
-            [CapabilityEnum::textGeneration()],
+            [CapabilityEnum::textGeneration(), CapabilityEnum::chatHistory()],
             []
         );
 
