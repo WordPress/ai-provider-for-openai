@@ -54,7 +54,9 @@ class OpenAiProviderTest extends TestCase
         $this->assertTrue($metadata->getAuthenticationMethod()->isApiKey());
 
         if (version_compare(AiClient::VERSION, '1.2.0', '>=')) {
-            $this->assertStringContainsString('GPT and Dall-E', $metadata->getDescription());
+            $description = $metadata->getDescription();
+            $this->assertNotNull($description);
+            $this->assertStringContainsString('GPT and Dall-E', $description);
         }
 
         if (version_compare(AiClient::VERSION, '1.3.0', '>=')) {
