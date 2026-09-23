@@ -140,16 +140,19 @@ class OpenAiProviderTest extends TestCase
      */
     public function testCreateModelWithEmbeddingGenerationCapability(): void
     {
-        if (!interface_exists(EmbeddingGenerationModelInterface::class)) {
-            $this->markTestSkipped('Embedding generation requires PHP AI Client 1.4.0 or later.');
-        }
-
         $modelMetadata = new ModelMetadata(
             'text-embedding-3-small',
             'text-embedding-3-small',
             [CapabilityEnum::embeddingGeneration()],
             []
         );
+
+        if (!interface_exists(EmbeddingGenerationModelInterface::class)) {
+            $this->expectException(RuntimeException::class);
+            $this->createModelViaProvider($modelMetadata);
+
+            return;
+        }
 
         $model = $this->createModelViaProvider($modelMetadata);
 
@@ -223,12 +226,12 @@ class OpenAiProviderTest extends TestCase
         $modelMetadata = new ModelMetadata(
             'unsupported-model',
             'unsupported-model',
-            [CapabilityEnum::chatHistory()],
+            [CapabilityEnum::speechGeneration()],
             []
         );
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unsupported model capabilities: chat_history');
+        $this->expectExceptionMessage('Unsupported model capabilities: speech_generation');
 
         $this->createModelViaProvider($modelMetadata);
     }
