@@ -33,17 +33,19 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
     /**
      * Regular expression matching the model ID prefixes of OpenAI reasoning models.
      *
-     * Reasoning models (codex-mini-latest, the versioned GPT-5 family, and the verified o1, o3,
-     * and o4 families) must be classified separately from standard GPT models. Only o-families
-     * whose behavior has been verified are recognized; new o-families require documentation and
-     * tests before they are added. GPT-5 chat aliases share a reasoning-family prefix but are
-     * non-reasoning models and are handled separately by self::isNonReasoningChatModel().
+     * Reasoning models (codex-mini-latest, the versioned GPT-5 family, GPT-6 Astra, and the
+     * verified o1, o3, and o4 families) must be classified separately from standard GPT models.
+     * Only o-families whose behavior has been verified are recognized; new o-families require
+     * documentation and tests before they are added. GPT-5 chat aliases share a
+     * reasoning-family prefix but are non-reasoning models and are handled separately by
+     * self::isNonReasoningChatModel().
      *
      * @since 1.1.0
      *
      * @var string
      */
-    private const REASONING_MODEL_ID_PATTERN = '/^(?:codex-mini-latest|gpt-5(?:\.\d+)?|o(?:1|3|4))(?:-|$)/';
+    private const REASONING_MODEL_ID_PATTERN =
+        '/^(?:codex-mini-latest|gpt-5(?:\.\d+)?|gpt-6-astra(?:-\d{4}-\d{2}-\d{2})?|o(?:1|3|4))(?:-|$)/';
 
     /**
      * Regular expression matching the IDs of reasoning models that use reasoning effort `none` by default.
@@ -154,6 +156,26 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
             new SupportedOption(
                 OptionEnum::inputModalities(),
                 $allModalityCombinationsWithText
+            ),
+            new SupportedOption(OptionEnum::outputModalities(), [[ModalityEnum::text()]]),
+        ]);
+        $gptTextAndImageInputOptions = array_merge($gptBaseOptions, $gptSamplingOptions, [
+            new SupportedOption(
+                OptionEnum::inputModalities(),
+                [
+                    [ModalityEnum::text()],
+                    [ModalityEnum::text(), ModalityEnum::image()],
+                ]
+            ),
+            new SupportedOption(OptionEnum::outputModalities(), [[ModalityEnum::text()]]),
+        ]);
+        $gptReasoningTextAndImageInputOptions = array_merge($gptBaseOptions, [
+            new SupportedOption(
+                OptionEnum::inputModalities(),
+                [
+                    [ModalityEnum::text()],
+                    [ModalityEnum::text(), ModalityEnum::image()],
+                ]
             ),
             new SupportedOption(OptionEnum::outputModalities(), [[ModalityEnum::text()]]),
         ]);
@@ -271,6 +293,8 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
                     $gptReasoningOptions,
                     $gptMultimodalInputOptions,
                     $gptReasoningMultimodalInputOptions,
+                    $gptTextAndImageInputOptions,
+                    $gptReasoningTextAndImageInputOptions,
                     $gptMultimodalSpeechOutputOptions,
                     $gptSearchOptions,
                     $imageCapabilities,
@@ -325,7 +349,12 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
                         && !str_contains($modelId, '-realtime')
                         && !str_contains($modelId, '-transcribe')
                     ) {
-                        if (self::supportsMultimodalTextInput($modelId)) {
+                        if (self::supportsTextAndImageInputOnly($modelId)) {
+                            $modelCaps = $gptCapabilities;
+                            $modelOptions = self::supportsSamplingOptions($modelId)
+                                ? $gptTextAndImageInputOptions
+                                : $gptReasoningTextAndImageInputOptions;
+                        } elseif (self::supportsMultimodalTextInput($modelId)) {
                             $modelCaps = $gptCapabilities;
                             $modelOptions = $gptMultimodalInputOptions;
                             // New multimodal output model for audio generation.
@@ -383,11 +412,24 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
     }
 
     /**
+     * Checks whether an OpenAI text generation model supports text and image input only.
+     *
+     * @since 1.2.1
+     *
+     * @param string $modelId The model ID.
+     * @return bool True if the model supports text and image input only, false otherwise.
+     */
+    private static function supportsTextAndImageInputOnly(string $modelId): bool
+    {
+        return (bool) preg_match('/^gpt-6-astra(?:-\d{4}-\d{2}-\d{2})?$/', $modelId);
+    }
+
+    /**
      * Checks whether an OpenAI text generation model is a reasoning model.
      *
      * Reasoning model families include codex-mini-latest, versioned GPT-5 models (e.g. `gpt-5`,
-     * `gpt-5.5`), and the verified o1, o3, and o4 families. GPT-5 chat aliases are non-reasoning
-     * models and are handled separately; see {@see self::isNonReasoningChatModel()} and
+     * `gpt-5.5`), GPT-6 Astra, and the verified o1, o3, and o4 families. GPT-5 chat aliases are
+     * non-reasoning models and are handled separately; see {@see self::isNonReasoningChatModel()} and
      * {@see self::supportsSamplingOptions()}.
      *
      * @since 1.1.0
