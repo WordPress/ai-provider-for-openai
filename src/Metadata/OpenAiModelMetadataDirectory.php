@@ -414,7 +414,7 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
     /**
      * Checks whether an OpenAI text generation model supports text and image input only.
      *
-     * @since 1.2.1
+     * @since n.e.x.t
      *
      * @param string $modelId The model ID.
      * @return bool True if the model supports text and image input only, false otherwise.
