@@ -36,7 +36,7 @@
 		},
 		{
 			"step": "runPHP",
-			"code": "<?php update_option( 'wpai_features_enabled', true ); update_option( 'wpai_feature_image-generation_enabled', true );"
+			"code": "<?php require_once '/wordpress/wp-load.php'; update_option( 'wpai_features_enabled', true ); update_option( 'wpai_feature_image-generation_enabled', true );"
 		}
 	]
 }
