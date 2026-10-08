@@ -129,6 +129,94 @@ class OpenAiModelMetadataDirectoryTest extends TestCase
     }
 
     /**
+     * Tests that explicit text model IDs receive metadata without listing models.
+     *
+     * The returned metadata must be identical to the metadata the models endpoint parser produces
+     * for the same ID, so that an explicitly named model behaves the same whether or not the
+     * provider models list was fetched.
+     *
+     * @dataProvider explicitTextModelIdProvider
+     *
+     * @param string $modelId The explicit text model ID.
+     */
+    public function testExplicitTextModelIdsSkipModelListing(string $modelId): void
+    {
+        $explicitMetadata = $this->createModelMetadataForExplicitModelIds([$modelId]);
+
+        $this->assertArrayHasKey($modelId, $explicitMetadata);
+        $this->assertEquals($this->parseSingleModelMetadata($modelId), $explicitMetadata[$modelId]);
+    }
+
+    /**
+     * Data provider for testExplicitTextModelIdsSkipModelListing().
+     *
+     * Model IDs are verified against a live OpenAI models response.
+     *
+     * @return array<string, array{string}> Map of test name to test data.
+     */
+    public function explicitTextModelIdProvider(): array
+    {
+        return [
+            'gpt-5.6-sol' => ['gpt-5.6-sol'],
+            'gpt-5.6-terra' => ['gpt-5.6-terra'],
+            'gpt-5.5' => ['gpt-5.5'],
+            'gpt-5.4-mini' => ['gpt-5.4-mini'],
+            'gpt-5.1-codex' => ['gpt-5.1-codex'],
+            'gpt-5-chat-latest' => ['gpt-5-chat-latest'],
+        ];
+    }
+
+    /**
+     * Tests that explicit non-text model IDs keep falling back to listing models.
+     *
+     * @dataProvider explicitNonTextModelIdProvider
+     *
+     * @param string $modelId The explicit model ID.
+     */
+    public function testExplicitNonTextModelIdsFallBackToModelListing(string $modelId): void
+    {
+        $this->assertSame([], $this->createModelMetadataForExplicitModelIds([$modelId]));
+    }
+
+    /**
+     * Data provider for testExplicitNonTextModelIdsFallBackToModelListing().
+     *
+     * @return array<string, array{string}> Map of test name to test data.
+     */
+    public function explicitNonTextModelIdProvider(): array
+    {
+        return [
+            'gpt-image-2' => ['gpt-image-2'],
+            'chatgpt-image-latest' => ['chatgpt-image-latest'],
+            'gpt-4o-mini-tts' => ['gpt-4o-mini-tts'],
+            'text-embedding-3-small' => ['text-embedding-3-small'],
+            'gpt-realtime-2' => ['gpt-realtime-2'],
+            'gpt-4o-transcribe' => ['gpt-4o-transcribe'],
+            'gpt-3.5-turbo-instruct' => ['gpt-3.5-turbo-instruct'],
+            'unknown-model' => ['some-unknown-model'],
+        ];
+    }
+
+    /**
+     * Creates the explicit model metadata for the given model IDs.
+     *
+     * @param list<string> $modelIds The explicit model IDs.
+     * @return array<string, ModelMetadata> Map of model ID to explicit model metadata.
+     */
+    private function createModelMetadataForExplicitModelIds(array $modelIds): array
+    {
+        $directory = new OpenAiModelMetadataDirectory();
+
+        $method = new ReflectionMethod($directory, 'createModelMetadataForExplicitModelIds');
+        $method->setAccessible(true);
+
+        /** @var array<string, ModelMetadata> $modelMetadataMap */
+        $modelMetadataMap = $method->invoke($directory, $modelIds);
+
+        return $modelMetadataMap;
+    }
+
+    /**
      * Parses the model metadata for a single model ID via the models endpoint response parser.
      *
      * @param string $modelId The model ID.
