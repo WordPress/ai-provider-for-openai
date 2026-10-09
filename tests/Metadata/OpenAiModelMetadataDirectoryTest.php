@@ -95,12 +95,41 @@ class OpenAiModelMetadataDirectoryTest extends TestCase
             'gpt-5.2-chat-latest (live API rejected temperature)' => ['gpt-5.2-chat-latest', false],
             'fine-tuned gpt-5.2' => ['ft:gpt-5.2:example-org:example-model', true],
             'fine-tuned gpt-5.2-codex' => ['ft:gpt-5.2-codex:example-org:example-model', false],
+            'gpt-6-astra (reasoning always enabled)' => ['gpt-6-astra', false],
+            'gpt-6-astra dated snapshot (reasoning always enabled)' => ['gpt-6-astra-2026-09-01', false],
             'codex-mini-latest (reasoning always enabled)' => ['codex-mini-latest', false],
             'o3 (reasoning always enabled)' => ['o3', false],
             'o4-mini (reasoning always enabled)' => ['o4-mini', false],
             'gpt-4o (standard GPT model)' => ['gpt-4o', true],
             'gpt-4.1 (standard GPT model)' => ['gpt-4.1', true],
         ];
+    }
+
+    /**
+     * Tests that GPT-6 Astra advertises text and image input only.
+     */
+    public function testGpt6AstraInputModalities(): void
+    {
+        $modelMetadata = $this->parseSingleModelMetadata('gpt-6-astra');
+        $inputModalities = $this->getSupportedOptionValues($modelMetadata, OptionEnum::inputModalities());
+
+        $modalityCombinations = array_map(
+            static function (array $modalities): string {
+                return implode(
+                    '+',
+                    array_map(
+                        static function ($modality): string {
+                            return $modality->value;
+                        },
+                        $modalities
+                    )
+                );
+            },
+            $inputModalities
+        );
+        sort($modalityCombinations);
+
+        $this->assertSame(['text', 'text+image'], $modalityCombinations);
     }
 
     /**
@@ -165,5 +194,32 @@ class OpenAiModelMetadataDirectoryTest extends TestCase
             },
             $modelMetadata->getSupportedOptions()
         );
+    }
+
+    /**
+     * Returns the values for the given supported option.
+     *
+     * @param ModelMetadata $modelMetadata The model metadata.
+     * @param OptionEnum $optionName The option name.
+     * @return array<mixed> The option values.
+     */
+    private function getSupportedOptionValues(ModelMetadata $modelMetadata, OptionEnum $optionName): array
+    {
+        foreach ($modelMetadata->getSupportedOptions() as $supportedOption) {
+            if ($supportedOption->getName()->value !== $optionName->value) {
+                continue;
+            }
+
+            $reflection = new \ReflectionObject($supportedOption);
+            foreach ($reflection->getProperties() as $property) {
+                $property->setAccessible(true);
+                $value = $property->getValue($supportedOption);
+                if (is_array($value)) {
+                    return $value;
+                }
+            }
+        }
+
+        $this->fail(sprintf('Supported option "%s" was not found.', $optionName->value));
     }
 }
