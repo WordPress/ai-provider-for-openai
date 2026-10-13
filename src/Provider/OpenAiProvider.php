@@ -89,13 +89,7 @@ class OpenAiProvider extends AbstractApiProvider
         ];
         // Provider description support was added in 1.2.0.
         if (version_compare(AiClient::VERSION, '1.2.0', '>=')) {
-            // For WordPress, we should translate the description.
-            if (function_exists('__')) {
-                // phpcs:ignore Generic.Files.LineLength.TooLong
-                $providerMetadataArgs[] = __('Text, image, embedding and speech generation with GPT and Dall-E.', 'ai-provider-for-openai');
-            } else {
-                $providerMetadataArgs[] = 'Text, image, embedding and speech generation with GPT and Dall-E.';
-            }
+            $providerMetadataArgs[] = self::translatedDescription();
         }
         // Provider logoPath support was added in 1.3.0.
         if (version_compare(AiClient::VERSION, '1.3.0', '>=')) {
@@ -109,6 +103,43 @@ class OpenAiProvider extends AbstractApiProvider
             $providerMetadataArgs[] = $pluginDir . '/assets/images/openai.svg';
         }
         return new ProviderMetadata(...$providerMetadataArgs);
+    }
+
+    /**
+     * Returns the localized provider description.
+     *
+     * WordPress core (7.0+) registers a default `openai` connector with its own translated
+     * description, and the AI Client registry metadata overrides it. When the plugin's language
+     * pack has no translation for the current locale, fall back to core's translated default so
+     * the connector screen does not revert to English after the plugin is activated.
+     *
+     * @since n.e.x.t
+     *
+     * @return string The provider description.
+     */
+    private static function translatedDescription(): string
+    {
+        $description = 'Text, image, embedding and speech generation with GPT and Dall-E.';
+
+        if (!function_exists('__')) {
+            return $description;
+        }
+
+        // phpcs:ignore Generic.Files.LineLength.TooLong
+        $translated = __('Text, image, embedding and speech generation with GPT and Dall-E.', 'ai-provider-for-openai');
+        if (is_string($translated) && $translated !== $description) {
+            return $translated;
+        }
+
+        // Core's default `openai` connector description, translated in the default text domain.
+        $coreDescription = 'Text and image generation with GPT and Dall-E.';
+        // phpcs:ignore WordPress.WP.I18n.MissingArgDomain
+        $coreTranslated = __('Text and image generation with GPT and Dall-E.');
+        if (is_string($coreTranslated) && $coreTranslated !== $coreDescription) {
+            return $coreTranslated;
+        }
+
+        return $description;
     }
 
     /**
