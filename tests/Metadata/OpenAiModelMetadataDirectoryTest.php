@@ -95,8 +95,10 @@ class OpenAiModelMetadataDirectoryTest extends TestCase
             'gpt-5.2-chat-latest (live API rejected temperature)' => ['gpt-5.2-chat-latest', false],
             'fine-tuned gpt-5.2' => ['ft:gpt-5.2:example-org:example-model', true],
             'fine-tuned gpt-5.2-codex' => ['ft:gpt-5.2-codex:example-org:example-model', false],
-            'gpt-6-astra (reasoning always enabled)' => ['gpt-6-astra', false],
-            'gpt-6-astra dated snapshot (reasoning always enabled)' => ['gpt-6-astra-2026-09-01', false],
+            'gpt-6-astra (default reasoning effort is not none)' => ['gpt-6-astra', false],
+            'gpt-6-luna (default reasoning effort is medium)' => ['gpt-6-luna', false],
+            'gpt-6-sol (default reasoning effort is medium)' => ['gpt-6-sol', false],
+            'gpt-6.1-sol (default reasoning effort is medium)' => ['gpt-6.1-sol', false],
             'codex-mini-latest (reasoning always enabled)' => ['codex-mini-latest', false],
             'o3 (reasoning always enabled)' => ['o3', false],
             'o4-mini (reasoning always enabled)' => ['o4-mini', false],
@@ -106,11 +108,15 @@ class OpenAiModelMetadataDirectoryTest extends TestCase
     }
 
     /**
-     * Tests that GPT-6 Astra advertises text and image input only.
+     * Tests that documented GPT-6 models advertise text and image input only.
+     *
+     * @dataProvider gpt6ModelIdProvider
+     *
+     * @param string $modelId The model ID returned by the OpenAI models endpoint.
      */
-    public function testGpt6AstraInputModalities(): void
+    public function testGpt6InputModalities(string $modelId): void
     {
-        $modelMetadata = $this->parseSingleModelMetadata('gpt-6-astra');
+        $modelMetadata = $this->parseSingleModelMetadata($modelId);
         $inputModalities = $this->getSupportedOptionValues($modelMetadata, OptionEnum::inputModalities());
 
         $modalityCombinations = array_map(
@@ -130,6 +136,21 @@ class OpenAiModelMetadataDirectoryTest extends TestCase
         sort($modalityCombinations);
 
         $this->assertSame(['text', 'text+image'], $modalityCombinations);
+    }
+
+    /**
+     * Provides the IDs of documented GPT-6 models.
+     *
+     * @return array<string, array{0: string}>
+     */
+    public function gpt6ModelIdProvider(): array
+    {
+        return [
+            'gpt-6-astra' => ['gpt-6-astra'],
+            'gpt-6-luna' => ['gpt-6-luna'],
+            'gpt-6-sol' => ['gpt-6-sol'],
+            'gpt-6.1-sol' => ['gpt-6.1-sol'],
+        ];
     }
 
     /**
@@ -210,14 +231,7 @@ class OpenAiModelMetadataDirectoryTest extends TestCase
                 continue;
             }
 
-            $reflection = new \ReflectionObject($supportedOption);
-            foreach ($reflection->getProperties() as $property) {
-                $property->setAccessible(true);
-                $value = $property->getValue($supportedOption);
-                if (is_array($value)) {
-                    return $value;
-                }
-            }
+            return $supportedOption->getSupportedValues() ?? [];
         }
 
         $this->fail(sprintf('Supported option "%s" was not found.', $optionName->value));
