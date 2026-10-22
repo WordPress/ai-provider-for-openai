@@ -103,9 +103,11 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
     /**
      * {@inheritDoc}
      *
-     * Avoids a live `GET /models` round trip when the caller already knows the explicit OpenAI model ID and that ID
-     * classifies as a text generation model. Image, embedding, text-to-speech, and unrecognized model IDs still fall
-     * back to listing models so they receive full capability and option metadata from the provider response.
+     * Avoids a live `GET /models` round trip for IDs the shared classifier treats as text generation models. Those
+     * IDs are not checked against the account's model catalog, so an unknown or inaccessible ID fails when the
+     * generation request is sent. Other IDs (image, embedding, text-to-speech, realtime, transcription, instruct, and
+     * IDs outside OpenAI's text model namespaces) still fall back to listing models, which confirms that the provider
+     * offers them.
      *
      * @since n.e.x.t
      *
