@@ -38,12 +38,26 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
      * whose behavior has been verified are recognized; new o-families require documentation and
      * tests before they are added. GPT-5 chat aliases share a reasoning-family prefix but are
      * non-reasoning models and are handled separately by self::isNonReasoningChatModel().
+     * Documented GPT-6 models are matched separately by self::GPT6_MODEL_ID_PATTERN.
      *
      * @since 1.1.0
      *
      * @var string
      */
     private const REASONING_MODEL_ID_PATTERN = '/^(?:codex-mini-latest|gpt-5(?:\.\d+)?|o(?:1|3|4))(?:-|$)/';
+
+    /**
+     * Regular expression matching the IDs of documented GPT-6 models.
+     *
+     * GPT-6 models accept text and image input and are reasoning models. None of them uses
+     * reasoning effort `none` by default. Only documented IDs are listed, so capabilities are not
+     * assigned to GPT-6 models before they are documented.
+     *
+     * @since n.e.x.t
+     *
+     * @var string
+     */
+    private const GPT6_MODEL_ID_PATTERN = '/^gpt-(?:6-(?:astra|luna|sol)|6\.1-sol)$/';
 
     /**
      * Regular expression matching the IDs of reasoning models that use reasoning effort `none` by default.
@@ -207,6 +221,16 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
             ),
             new SupportedOption(OptionEnum::outputModalities(), [[ModalityEnum::text()]]),
         ]);
+        $gptReasoningTextAndImageInputOptions = array_merge($gptBaseOptions, [
+            new SupportedOption(
+                OptionEnum::inputModalities(),
+                [
+                    [ModalityEnum::text()],
+                    [ModalityEnum::text(), ModalityEnum::image()],
+                ]
+            ),
+            new SupportedOption(OptionEnum::outputModalities(), [[ModalityEnum::text()]]),
+        ]);
         $gptMultimodalSpeechOutputOptions = array_merge($gptBaseOptions, $gptSamplingOptions, [
             new SupportedOption(
                 OptionEnum::inputModalities(),
@@ -326,6 +350,7 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
                     $gptReasoningOptions,
                     $gptMultimodalInputOptions,
                     $gptReasoningMultimodalInputOptions,
+                    $gptReasoningTextAndImageInputOptions,
                     $gptMultimodalSpeechOutputOptions,
                     $gptSearchOptions,
                     $imageCapabilities,
@@ -380,7 +405,11 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
                         && !str_contains($modelId, '-realtime')
                         && !str_contains($modelId, '-transcribe')
                     ) {
-                        if (self::supportsMultimodalTextInput($modelId)) {
+                        if (self::isGpt6Model($modelId)) {
+                            // No GPT-6 model defaults to reasoning effort `none`, so none supports sampling options.
+                            $modelCaps = $gptCapabilities;
+                            $modelOptions = $gptReasoningTextAndImageInputOptions;
+                        } elseif (self::supportsMultimodalTextInput($modelId)) {
                             $modelCaps = $gptCapabilities;
                             $modelOptions = $gptMultimodalInputOptions;
                             // New multimodal output model for audio generation.
@@ -441,11 +470,26 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
     }
 
     /**
+     * Checks whether an OpenAI text generation model is a documented GPT-6 model.
+     *
+     * GPT-6 models are reasoning models that support text and image input only.
+     *
+     * @since n.e.x.t
+     *
+     * @param string $modelId The model ID.
+     * @return bool True if the model is a documented GPT-6 model, false otherwise.
+     */
+    private static function isGpt6Model(string $modelId): bool
+    {
+        return (bool) preg_match(self::GPT6_MODEL_ID_PATTERN, $modelId);
+    }
+
+    /**
      * Checks whether an OpenAI text generation model is a reasoning model.
      *
      * Reasoning model families include codex-mini-latest, versioned GPT-5 models (e.g. `gpt-5`,
-     * `gpt-5.5`), and the verified o1, o3, and o4 families. GPT-5 chat aliases are non-reasoning
-     * models and are handled separately; see {@see self::isNonReasoningChatModel()} and
+     * `gpt-5.5`), documented GPT-6 models, and the verified o1, o3, and o4 families. GPT-5 chat aliases are
+     * non-reasoning models and are handled separately; see {@see self::isNonReasoningChatModel()} and
      * {@see self::supportsSamplingOptions()}.
      *
      * @since 1.1.0
@@ -455,7 +499,7 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
      */
     private static function isReasoningModel(string $modelId): bool
     {
-        return (bool) preg_match(self::REASONING_MODEL_ID_PATTERN, $modelId);
+        return (bool) preg_match(self::REASONING_MODEL_ID_PATTERN, $modelId) || self::isGpt6Model($modelId);
     }
 
     /**

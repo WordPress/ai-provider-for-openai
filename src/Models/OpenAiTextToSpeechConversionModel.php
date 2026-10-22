@@ -28,7 +28,7 @@ use WordPress\OpenAiAiProvider\Provider\OpenAiProvider;
  * Uses the `/audio/speech` endpoint to synthesize speech from text with models
  * such as `tts-1`, `tts-1-hd`, and `gpt-4o-mini-tts`.
  *
- * @since n.e.x.t
+ * @since 1.2.0
  */
 class OpenAiTextToSpeechConversionModel extends AbstractApiBasedModel implements
     TextToSpeechConversionModelInterface
@@ -59,7 +59,7 @@ class OpenAiTextToSpeechConversionModel extends AbstractApiBasedModel implements
     /**
      * {@inheritDoc}
      *
-     * @since n.e.x.t
+     * @since 1.2.0
      */
     public function convertTextToSpeechResult(array $prompt): GenerativeAiResult
     {
@@ -89,7 +89,7 @@ class OpenAiTextToSpeechConversionModel extends AbstractApiBasedModel implements
     /**
      * Prepares the request parameters for the Audio Speech API.
      *
-     * @since n.e.x.t
+     * @since 1.2.0
      *
      * @param list<Message> $prompt   The prompt messages containing the text.
      * @param string        $mimeType The resolved output MIME type.
@@ -133,7 +133,7 @@ class OpenAiTextToSpeechConversionModel extends AbstractApiBasedModel implements
      * The Audio Speech API accepts a single block of text, so this concatenates
      * the text parts found across the prompt messages.
      *
-     * @since n.e.x.t
+     * @since 1.2.0
      *
      * @param list<Message> $prompt The prompt messages.
      * @return string The text to convert to speech.
@@ -163,7 +163,7 @@ class OpenAiTextToSpeechConversionModel extends AbstractApiBasedModel implements
     /**
      * Resolves the voice to use, falling back to the default.
      *
-     * @since n.e.x.t
+     * @since 1.2.0
      *
      * @return string The voice identifier.
      */
@@ -177,7 +177,7 @@ class OpenAiTextToSpeechConversionModel extends AbstractApiBasedModel implements
     /**
      * Resolves the output MIME type, defaulting and validating against supported types.
      *
-     * @since n.e.x.t
+     * @since 1.2.0
      *
      * @return string A supported audio MIME type.
      * @throws InvalidArgumentException If the configured MIME type is unsupported.
@@ -207,7 +207,7 @@ class OpenAiTextToSpeechConversionModel extends AbstractApiBasedModel implements
      * The Audio Speech API returns raw audio bytes rather than JSON, so the body
      * is base64-encoded into an inline audio file.
      *
-     * @since n.e.x.t
+     * @since 1.2.0
      *
      * @param Response $response The HTTP response containing raw audio bytes.
      * @param string   $mimeType The MIME type of the returned audio.
@@ -244,7 +244,7 @@ class OpenAiTextToSpeechConversionModel extends AbstractApiBasedModel implements
      * The Audio Speech API does not return an identifier, so one is generated
      * locally for the result.
      *
-     * @since n.e.x.t
+     * @since 1.2.0
      *
      * @return string The result identifier.
      */
