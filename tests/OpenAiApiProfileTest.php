@@ -13,6 +13,7 @@ use WordPress\AiClient\Common\Exception\RuntimeException as AiRuntimeException;
 use WordPress\AiClient\Messages\DTO\Message;
 use WordPress\AiClient\Messages\DTO\MessagePart;
 use WordPress\AiClient\Messages\Enums\MessageRoleEnum;
+use WordPress\AiClient\Providers\ApiBasedImplementation\ListModelsApiBasedProviderAvailability;
 use WordPress\AiClient\Providers\DTO\ProviderMetadata;
 use WordPress\AiClient\Providers\Enums\ProviderTypeEnum;
 use WordPress\AiClient\Providers\Http\Contracts\HttpTransporterInterface;
@@ -438,6 +439,31 @@ final class OpenAiApiProfileTest extends TestCase
         self::assertSame($unboundCacheKey, $directory->baseCacheKey());
     }
 
+    public function testUnsupportedModelListingStopsBeforeAuthenticationAndReportsUnconfigured(): void
+    {
+        openai_profile_test_reset();
+        $trace = new OpenAiProfileTestTrace();
+        $profile = new OpenAiProfileTestProfile('unsupported-model-list', [OpenAiApiOperation::GENERATE_TEXT], $trace);
+        $authentication = new OpenAiProfileTestAuthentication($profile, $trace);
+        $transporter = new OpenAiProfileTestTransporter(new Response(200, [], '{}'), $trace);
+        $directory = new OpenAiProfileTestMetadataDirectory();
+        $directory->setRequestAuthentication($authentication);
+        $directory->setHttpTransporter($transporter);
+
+        try {
+            $directory->listModelMetadata();
+            self::fail('A profile without LIST_MODELS must reject model discovery.');
+        } catch (AiRuntimeException $exception) {
+            self::assertStringContainsString('listing models', $exception->getMessage());
+        }
+
+        $availability = new ListModelsApiBasedProviderAvailability($directory);
+        self::assertFalse($availability->isConfigured());
+        self::assertSame([], $trace->events);
+        self::assertSame(0, $transporter->sendCount);
+        self::assertSame(1, $authentication->profileResolutionCount);
+    }
+
     /** @return array<string, array{string, string, string, string}> */
     public function additionalOperations(): array
     {
@@ -623,6 +649,7 @@ final class OpenAiApiProfileTest extends TestCase
         );
 
         $registry = new ProviderRegistry();
+        $registry->setHttpTransporter(new OpenAiProfileTestTransporter(new Response(200, [], '{}')));
         $registry->registerProvider(OpenAiProvider::class);
         try {
             $registry->setProviderRequestAuthentication(OpenAiProvider::class, $authentication);
