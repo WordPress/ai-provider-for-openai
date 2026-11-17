@@ -80,7 +80,13 @@ The PHP AI Client currently validates replacement OpenAI authentication against 
 
 WordPress integrations may also supply or replace a profile with the `ai_provider_for_openai_api_profile` filter. Profile request changes are applied before authentication, and response normalization is applied only after a successful HTTP response. Because a profile can change where authenticated requests are sent, only trusted code should provide one.
 
-API-key authentication does not use a profile, so its existing request and cache behavior remains unchanged.
+When no profile-aware authentication is bound and no filter supplies a profile, request and cache behavior is unchanged. The filter also runs for plain API-key authentication, so a supplied profile can route that API key to its chosen endpoint.
+
+Profiles must support `OpenAiApiOperation::LIST_MODELS`: provider availability and model discovery use the model catalog, including on cache misses. Other operations (text, images, embeddings, and text-to-speech) may be rejected individually before credentials are applied or a request is sent.
+
+### Maintainers
+
+Maintainers for this repo are [David Stone (@superdav42)](https://github.com/superdav42), [Felix Arntz (@felixarntz)](https://github.com/felixarntz), [Jason Adams (@JasonTheAdams)](https://github.com/JasonTheAdams), [Jeffrey Paul (@jeffpaul)](https://github.com/jeffpaul), and [Lauri Saarni (@saarnilauri)](https://github.com/saarnilauri); all can be reached using the [@WordPress/ai-provider-for-openai-maintainers](https://github.com/orgs/WordPress/teams/ai-provider-for-openai-maintainers) team.
 
 ## License
 

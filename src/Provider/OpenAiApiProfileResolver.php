@@ -12,7 +12,7 @@ use WordPress\OpenAiAiProvider\Contracts\OpenAiApiProfileInterface;
 /**
  * Resolves an alternate OpenAI API profile for request authentication.
  *
- * @since 1.1.0
+ * @since n.e.x.t
  */
 final class OpenAiApiProfileResolver
 {
@@ -25,7 +25,7 @@ final class OpenAiApiProfileResolver
      * can route authenticated requests to a different endpoint and must
      * validate that destination.
      *
-     * @since 1.1.0
+     * @since n.e.x.t
      *
      * @param RequestAuthenticationInterface $authentication The request authentication.
      * @return OpenAiApiProfileInterface|null The alternate profile, or null for the standard API.
@@ -44,7 +44,7 @@ final class OpenAiApiProfileResolver
              * A profile controls where authenticated requests are sent. Only
              * trusted code should return a profile from this filter.
              *
-             * @since 1.1.0
+             * @since n.e.x.t
              *
              * @param OpenAiApiProfileInterface|null $profile The resolved profile, if any.
              * @param RequestAuthenticationInterface $authentication The request authentication.

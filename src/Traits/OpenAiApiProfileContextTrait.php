@@ -15,7 +15,7 @@ use WordPress\OpenAiAiProvider\Provider\OpenAiApiProfileResolver;
  * profile for its endpoint, request preparation, response normalization, and
  * cache namespace. Rebinding authentication clears the pinned profile.
  *
- * @since 1.1.0
+ * @since n.e.x.t
  */
 trait OpenAiApiProfileContextTrait
 {
@@ -37,14 +37,23 @@ trait OpenAiApiProfileContextTrait
     private bool $openAiApiProfileResolved = false;
 
     /**
+     * Whether request authentication has been explicitly bound.
+     *
+     * @var bool
+     */
+    private bool $openAiAuthenticationBound = false;
+
+    /**
      * {@inheritDoc}
      *
-     * @since 1.1.0
+     * @since n.e.x.t
      */
     public function setRequestAuthentication(
         RequestAuthenticationInterface $requestAuthentication
     ): void {
         parent::setRequestAuthentication($requestAuthentication);
+
+        $this->openAiAuthenticationBound = true;
 
         $this->openAiApiProfile = null;
         $this->openAiApiProfileResolved = false;
@@ -53,12 +62,17 @@ trait OpenAiApiProfileContextTrait
     /**
      * Gets the profile pinned to the bound request authentication.
      *
-     * @since 1.1.0
+     * @since n.e.x.t
      *
      * @return OpenAiApiProfileInterface|null The alternate profile, or null for the standard API.
      */
     protected function getOpenAiApiProfile(): ?OpenAiApiProfileInterface
     {
+        // Parsing and cache-key inspection do not require credentials.
+        if (!$this->openAiAuthenticationBound) {
+            return null;
+        }
+
         if (!$this->openAiApiProfileResolved) {
             $this->openAiApiProfile = OpenAiApiProfileResolver::resolve(
                 $this->getRequestAuthentication()

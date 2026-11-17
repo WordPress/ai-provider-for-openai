@@ -4,8 +4,8 @@
 
     <!-- Scan these files -->
     <file>src</file>
-    <file>plugin.php</file>
     <file>tests</file>
+    <file>plugin.php</file>
 
     <!-- Ignore vendor directory -->
     <exclude-pattern>*/vendor/*</exclude-pattern>

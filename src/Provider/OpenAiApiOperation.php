@@ -9,7 +9,7 @@ namespace WordPress\OpenAiAiProvider\Provider;
  *
  * This uses class constants instead of a native enum to retain PHP 7.4 support.
  *
- * @since 1.1.0
+ * @since n.e.x.t
  */
 final class OpenAiApiOperation
 {
@@ -17,6 +17,8 @@ final class OpenAiApiOperation
     public const GENERATE_TEXT = 'generate_text';
     public const GENERATE_IMAGE = 'generate_image';
     public const EDIT_IMAGE = 'edit_image';
+    public const GENERATE_EMBEDDING = 'generate_embedding';
+    public const CONVERT_TEXT_TO_SPEECH = 'convert_text_to_speech';
 
     /**
      * This class only contains constants and cannot be instantiated.

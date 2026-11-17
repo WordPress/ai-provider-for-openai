@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace WordPress\OpenAiAiProvider\Authentication;
 
+use WordPress\AiClient\Common\Exception\RuntimeException;
 use WordPress\AiClient\Providers\Http\DTO\ApiKeyRequestAuthentication;
 use WordPress\AiClient\Providers\Http\DTO\Request;
 use WordPress\OpenAiAiProvider\Contracts\OpenAiApiProfileAwareAuthenticationInterface;
@@ -18,8 +19,10 @@ use WordPress\OpenAiAiProvider\Contracts\OpenAiApiProfileInterface;
  * that compatibility detail out of alternate authentication implementations.
  * It is a runtime-only adapter and should not be used as a serialized
  * credential value.
+ * This temporary bridge will be deprecated once the SDK supports additional
+ * authentication methods.
  *
- * @since 1.1.0
+ * @since n.e.x.t
  */
 final class OpenAiApiProfileRequestAuthenticationAdapter extends ApiKeyRequestAuthentication implements
     OpenAiApiProfileAwareAuthenticationInterface
@@ -34,7 +37,7 @@ final class OpenAiApiProfileRequestAuthenticationAdapter extends ApiKeyRequestAu
     /**
      * Constructor.
      *
-     * @since 1.1.0
+     * @since n.e.x.t
      *
      * @param OpenAiApiProfileAwareAuthenticationInterface $authentication Authentication to adapt.
      */
@@ -62,5 +65,18 @@ final class OpenAiApiProfileRequestAuthenticationAdapter extends ApiKeyRequestAu
     public function getOpenAiApiProfile(): OpenAiApiProfileInterface
     {
         return $this->authentication->getOpenAiApiProfile();
+    }
+
+    /**
+     * Prevents serializing the registry compatibility marker as credentials.
+     *
+     * @since n.e.x.t
+     *
+     * @return array{apiKey: string} This adapter cannot be serialized.
+     * @throws RuntimeException Always; install runtime authentication explicitly.
+     */
+    public function toArray(): array
+    {
+        throw new RuntimeException('OpenAI API profile authentication adapters cannot be serialized.');
     }
 }
