@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace WordPress\OpenAiAiProvider\Models;
 
 use WordPress\AiClient\Common\Exception\InvalidArgumentException;
+use WordPress\AiClient\Common\Exception\RuntimeException;
 use WordPress\AiClient\Files\DTO\File;
 use WordPress\AiClient\Messages\DTO\Message;
 use WordPress\AiClient\Messages\DTO\MessagePart;
@@ -20,7 +21,9 @@ use WordPress\AiClient\Results\DTO\Candidate;
 use WordPress\AiClient\Results\DTO\GenerativeAiResult;
 use WordPress\AiClient\Results\DTO\TokenUsage;
 use WordPress\AiClient\Results\Enums\FinishReasonEnum;
+use WordPress\OpenAiAiProvider\Provider\OpenAiApiOperation;
 use WordPress\OpenAiAiProvider\Provider\OpenAiProvider;
+use WordPress\OpenAiAiProvider\Traits\OpenAiApiProfileContextTrait;
 
 /**
  * Class for an OpenAI text-to-speech conversion model using the Audio Speech API.
@@ -33,6 +36,8 @@ use WordPress\OpenAiAiProvider\Provider\OpenAiProvider;
 class OpenAiTextToSpeechConversionModel extends AbstractApiBasedModel implements
     TextToSpeechConversionModelInterface
 {
+    use OpenAiApiProfileContextTrait;
+
     /**
      * Default voice used when none is configured.
      */
@@ -68,13 +73,25 @@ class OpenAiTextToSpeechConversionModel extends AbstractApiBasedModel implements
         $mimeType = $this->prepareOutputMimeType();
         $params   = $this->prepareConvertParams($prompt, $mimeType);
 
+        $apiProfile = $this->getOpenAiApiProfile();
+        $operation = OpenAiApiOperation::CONVERT_TEXT_TO_SPEECH;
+        if ($apiProfile !== null && !$apiProfile->supportsOperation($operation)) {
+            throw new RuntimeException('The selected OpenAI API profile does not support text-to-speech conversion.');
+        }
+
+        $defaultUrl = OpenAiProvider::url('audio/speech');
+
         $request = new Request(
             HttpMethodEnum::POST(),
-            OpenAiProvider::url('audio/speech'),
+            $apiProfile !== null ? $apiProfile->getRequestUrl($defaultUrl, 'audio/speech', $operation) : $defaultUrl,
             ['Content-Type' => 'application/json'],
             $params,
             $this->getRequestOptions()
         );
+
+        if ($apiProfile !== null) {
+            $request = $apiProfile->prepareRequest($request, $operation);
+        }
 
         // Add authentication credentials to the request.
         $request = $this->getRequestAuthentication()->authenticateRequest($request);
@@ -82,6 +99,9 @@ class OpenAiTextToSpeechConversionModel extends AbstractApiBasedModel implements
         // Send and process the request.
         $response = $httpTransporter->send($request);
         ResponseUtil::throwIfNotSuccessful($response);
+        if ($apiProfile !== null) {
+            $response = $apiProfile->normalizeResponse($response, $operation);
+        }
 
         return $this->parseResponseToGenerativeAiResult($response, $mimeType);
     }

@@ -72,6 +72,18 @@ The provider uses the `OPENAI_API_KEY` environment variable for authentication. 
 putenv('OPENAI_API_KEY=your-api-key');
 ```
 
+## Extending OpenAI API profiles
+
+The provider supports alternate OpenAI API dialects without requiring a fork. A custom request authentication implementation can implement `OpenAiApiProfileAwareAuthenticationInterface` and return an `OpenAiApiProfileInterface` instance. The profile can adapt operation support, endpoint URLs, requests, responses, model metadata, and model-cache isolation while the authentication object remains responsible for credentials.
+
+The PHP AI Client currently validates replacement OpenAI authentication against its API-key DTO. Pass profile-aware authentication through `OpenAiApiProfileRequestAuthenticationAdapter` before registering it with `setProviderRequestAuthentication()`. The adapter only satisfies that registry compatibility check; request authentication and profile selection are delegated to the wrapped implementation.
+
+WordPress integrations may also supply or replace a profile with the `ai_provider_for_openai_api_profile` filter. Profile request changes are applied before authentication, and response normalization is applied only after a successful HTTP response. Because a profile can change where authenticated requests are sent, only trusted code should provide one.
+
+When no profile-aware authentication is bound and no filter supplies a profile, request and cache behavior is unchanged. The filter also runs for plain API-key authentication, so a supplied profile can route that API key to its chosen endpoint.
+
+Profiles must support `OpenAiApiOperation::LIST_MODELS`: provider availability and model discovery use the model catalog, including on cache misses. Other operations (text, images, embeddings, and text-to-speech) may be rejected individually before credentials are applied or a request is sent.
+
 ### Maintainers
 
 Maintainers for this repo are [David Stone (@superdav42)](https://github.com/superdav42), [Felix Arntz (@felixarntz)](https://github.com/felixarntz), [Jason Adams (@JasonTheAdams)](https://github.com/JasonTheAdams), [Jeffrey Paul (@jeffpaul)](https://github.com/jeffpaul), and [Lauri Saarni (@saarnilauri)](https://github.com/saarnilauri); all can be reached using the [@WordPress/ai-provider-for-openai-maintainers](https://github.com/orgs/WordPress/teams/ai-provider-for-openai-maintainers) team.

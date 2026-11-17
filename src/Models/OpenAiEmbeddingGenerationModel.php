@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace WordPress\OpenAiAiProvider\Models;
 
 use WordPress\AiClient\Common\Exception\InvalidArgumentException;
+use WordPress\AiClient\Common\Exception\RuntimeException;
 use WordPress\AiClient\Messages\DTO\MessagePart;
 use WordPress\AiClient\Providers\ApiBasedImplementation\AbstractApiBasedModel;
 use WordPress\AiClient\Providers\Http\DTO\Request;
@@ -16,7 +17,9 @@ use WordPress\AiClient\Providers\Models\EmbeddingGeneration\Contracts\EmbeddingG
 use WordPress\AiClient\Results\DTO\Embedding;
 use WordPress\AiClient\Results\DTO\EmbeddingResult;
 use WordPress\AiClient\Results\DTO\TokenUsage;
+use WordPress\OpenAiAiProvider\Provider\OpenAiApiOperation;
 use WordPress\OpenAiAiProvider\Provider\OpenAiProvider;
+use WordPress\OpenAiAiProvider\Traits\OpenAiApiProfileContextTrait;
 
 /**
  * Class for an OpenAI embedding generation model using the Embeddings API.
@@ -29,6 +32,8 @@ use WordPress\OpenAiAiProvider\Provider\OpenAiProvider;
  */
 class OpenAiEmbeddingGenerationModel extends AbstractApiBasedModel implements EmbeddingGenerationModelInterface
 {
+    use OpenAiApiProfileContextTrait;
+
     /**
      * {@inheritDoc}
      *
@@ -52,6 +57,10 @@ class OpenAiEmbeddingGenerationModel extends AbstractApiBasedModel implements Em
 
         $response = $this->getHttpTransporter()->send($request);
         ResponseUtil::throwIfNotSuccessful($response);
+        $apiProfile = $this->getOpenAiApiProfile();
+        if ($apiProfile !== null) {
+            $response = $apiProfile->normalizeResponse($response, OpenAiApiOperation::GENERATE_EMBEDDING);
+        }
 
         return $this->parseResponseToEmbeddingResult($response);
     }
@@ -138,13 +147,22 @@ class OpenAiEmbeddingGenerationModel extends AbstractApiBasedModel implements Em
         array $headers = [],
         $data = null
     ): Request {
-        return new Request(
+        $apiProfile = $this->getOpenAiApiProfile();
+        $operation = OpenAiApiOperation::GENERATE_EMBEDDING;
+        if ($apiProfile !== null && !$apiProfile->supportsOperation($operation)) {
+            throw new RuntimeException('The selected OpenAI API profile does not support embedding generation.');
+        }
+
+        $defaultUrl = OpenAiProvider::url($path);
+        $request = new Request(
             $method,
-            OpenAiProvider::url($path),
+            $apiProfile !== null ? $apiProfile->getRequestUrl($defaultUrl, $path, $operation) : $defaultUrl,
             $headers,
             $data,
             $this->getRequestOptions()
         );
+
+        return $apiProfile !== null ? $apiProfile->prepareRequest($request, $operation) : $request;
     }
 
     /**
