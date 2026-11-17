@@ -12,14 +12,14 @@ use WordPress\AiClient\Providers\Http\Contracts\RequestAuthenticationInterface;
  * Coupling the profile to its authentication object prevents the provider from
  * inferring an API dialect from a concrete authentication implementation.
  *
- * @since n.e.x.t
+ * @since 1.3.0
  */
 interface OpenAiApiProfileAwareAuthenticationInterface extends RequestAuthenticationInterface
 {
     /**
      * Gets the API profile associated with this request authentication.
      *
-     * @since n.e.x.t
+     * @since 1.3.0
      *
      * @return OpenAiApiProfileInterface The associated API profile.
      */

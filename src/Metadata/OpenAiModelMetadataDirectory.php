@@ -58,7 +58,7 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
      * reasoning effort `none` by default. Only documented IDs are listed, so capabilities are not
      * assigned to GPT-6 models before they are documented.
      *
-     * @since n.e.x.t
+     * @since 1.3.0
      *
      * @var string
      */
@@ -132,7 +132,7 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
      * IDs outside OpenAI's text model namespaces) still fall back to listing models, which confirms that the provider
      * offers them.
      *
-     * @since n.e.x.t
+     * @since 1.3.0
      *
      * @param list<string> $modelIds The explicit model IDs.
      * @return array<string, ModelMetadata> Map of model ID to explicit model metadata.
@@ -197,7 +197,7 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
     /**
      * Creates model metadata for the given model IDs, using the shared OpenAI model ID classifier.
      *
-     * @since n.e.x.t
+     * @since 1.3.0
      *
      * @param list<string> $modelIds The model IDs.
      * @return array<string, ModelMetadata> Map of model ID to model metadata.
@@ -501,7 +501,7 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
      * profile identities are hashed so account identifiers and other profile
      * details never appear in persistent cache keys.
      *
-     * @since n.e.x.t
+     * @since 1.3.0
      *
      * @return string The cache key prefix.
      */
@@ -543,7 +543,7 @@ class OpenAiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadata
      *
      * GPT-6 models are reasoning models that support text and image input only.
      *
-     * @since n.e.x.t
+     * @since 1.3.0
      *
      * @param string $modelId The model ID.
      * @return bool True if the model is a documented GPT-6 model, false otherwise.

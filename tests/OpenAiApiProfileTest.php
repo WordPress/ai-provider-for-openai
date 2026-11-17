@@ -406,7 +406,7 @@ function openai_profile_test_prompt(): array
 /**
  * Tests the OpenAI API profile lifecycle and registry compatibility.
  *
- * @since n.e.x.t
+ * @since 1.3.0
  */
 final class OpenAiApiProfileTest extends TestCase
 {

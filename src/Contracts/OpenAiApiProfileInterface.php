@@ -15,7 +15,7 @@ use WordPress\AiClient\Providers\Models\DTO\ModelMetadata;
  * continues to own the common model behavior. Implementations are trusted
  * code because they can select the destination for authenticated requests.
  *
- * @since n.e.x.t
+ * @since 1.3.0
  */
 interface OpenAiApiProfileInterface
 {
@@ -24,7 +24,7 @@ interface OpenAiApiProfileInterface
      *
      * The provider hashes this value before using it in a cache key.
      *
-     * @since n.e.x.t
+     * @since 1.3.0
      *
      * @return string The profile cache identity.
      */
@@ -36,7 +36,7 @@ interface OpenAiApiProfileInterface
      * LIST_MODELS is required for provider availability and model discovery.
      * Returning false for it makes the provider unavailable on a cache miss.
      *
-     * @since n.e.x.t
+     * @since 1.3.0
      *
      * @param string $operation One of the OpenAiApiOperation constants.
      * @return bool True if the operation is supported, false otherwise.
@@ -49,7 +49,7 @@ interface OpenAiApiProfileInterface
      * Implementations must only return destinations that they trust to receive
      * credentials from the associated request authentication object.
      *
-     * @since n.e.x.t
+     * @since 1.3.0
      *
      * @param string $defaultUrl The URL used by the standard OpenAI API profile.
      * @param string $path The endpoint path relative to the API base URL.
@@ -61,7 +61,7 @@ interface OpenAiApiProfileInterface
     /**
      * Adapts a request before authentication credentials are applied.
      *
-     * @since n.e.x.t
+     * @since 1.3.0
      *
      * @param Request $request The standard OpenAI API request.
      * @param string $operation One of the OpenAiApiOperation constants.
@@ -72,7 +72,7 @@ interface OpenAiApiProfileInterface
     /**
      * Normalizes a successful response before the standard response parser runs.
      *
-     * @since n.e.x.t
+     * @since 1.3.0
      *
      * @param Response $response The successful response to normalize.
      * @param string $operation One of the OpenAiApiOperation constants.
@@ -83,7 +83,7 @@ interface OpenAiApiProfileInterface
     /**
      * Parses a profile-specific list-models response.
      *
-     * @since n.e.x.t
+     * @since 1.3.0
      *
      * @param Response $response The successful list-models response.
      * Return null to use the provider's standard OpenAI model metadata
