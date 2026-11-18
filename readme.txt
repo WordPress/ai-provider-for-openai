@@ -3,7 +3,7 @@ Contributors:      wordpressdotorg
 Tags:              ai, openai, gpt, artificial-intelligence, connector
 Requires at least: 6.9
 Tested up to:      7.1
-Stable tag:        1.2.0
+Stable tag:        1.3.0
 Requires PHP:      7.4
 License:           GPL-2.0-or-later
 License URI:       https://www.gnu.org/licenses/gpl-2.0.html
@@ -48,6 +48,19 @@ Visit the [OpenAI Platform](https://platform.openai.com/) to create an account a
 No, this plugin requires the PHP AI Client plugin to be installed and activated. It provides the OpenAI-specific implementation that the PHP AI Client uses.
 
 == Changelog ==
+
+= 1.3.0 - 2026-11-18 =
+
+**Added**
+
+- Extensible OpenAI API profiles for alternate request routing, request preparation, response normalization, model catalog parsing, operation support, and cache identity. Profiles can be supplied through profile-aware authentication or the `ai_provider_for_openai_api_profile` filter ([#41](https://github.com/WordPress/ai-provider-for-openai/pull/41)).
+- Preserve standard OpenAI behavior when no profile is supplied, and reject unsupported operations before authentication or transport ([#41](https://github.com/WordPress/ai-provider-for-openai/pull/41)).
+- Support for classifying documented GPT-6 models (`gpt-6-astra`, `gpt-6-luna`, `gpt-6-sol`, and `gpt-6.1-sol`) as reasoning models that accept text and image input ([#54](https://github.com/WordPress/ai-provider-for-openai/pull/54)).
+
+**Fixed**
+
+- Avoid listing models when resolving explicit OpenAI text model IDs, so model lookup doesn’t depend on the models-list endpoint. ([#23](https://github.com/WordPress/ai-provider-for-openai/pull/23)).
+- Provider logo URL resolution for symlinked plugin installations to avoid WordPress 7.0 “doing it wrong” notices and ensure valid assets are recognized ([#49](https://github.com/WordPress/ai-provider-for-openai/pull/49)).
 
 = 1.2.0 - 2026-09-21 =
 

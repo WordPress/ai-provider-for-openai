@@ -133,7 +133,7 @@ class OpenAiImageGenerationModel extends AbstractOpenAiCompatibleImageGeneration
     /**
      * {@inheritDoc}
      *
-     * @since n.e.x.t
+     * @since 1.3.0
      */
     protected function parseResponseToGenerativeAiResult(
         Response $response,

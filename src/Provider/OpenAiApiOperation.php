@@ -9,7 +9,7 @@ namespace WordPress\OpenAiAiProvider\Provider;
  *
  * This uses class constants instead of a native enum to retain PHP 7.4 support.
  *
- * @since n.e.x.t
+ * @since 1.3.0
  */
 final class OpenAiApiOperation
 {

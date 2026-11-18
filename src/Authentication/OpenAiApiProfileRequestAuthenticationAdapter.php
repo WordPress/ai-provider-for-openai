@@ -22,7 +22,7 @@ use WordPress\OpenAiAiProvider\Contracts\OpenAiApiProfileInterface;
  * This temporary bridge will be deprecated once the SDK supports additional
  * authentication methods.
  *
- * @since n.e.x.t
+ * @since 1.3.0
  */
 final class OpenAiApiProfileRequestAuthenticationAdapter extends ApiKeyRequestAuthentication implements
     OpenAiApiProfileAwareAuthenticationInterface
@@ -37,7 +37,7 @@ final class OpenAiApiProfileRequestAuthenticationAdapter extends ApiKeyRequestAu
     /**
      * Constructor.
      *
-     * @since n.e.x.t
+     * @since 1.3.0
      *
      * @param OpenAiApiProfileAwareAuthenticationInterface $authentication Authentication to adapt.
      */
@@ -70,7 +70,7 @@ final class OpenAiApiProfileRequestAuthenticationAdapter extends ApiKeyRequestAu
     /**
      * Prevents serializing the registry compatibility marker as credentials.
      *
-     * @since n.e.x.t
+     * @since 1.3.0
      *
      * @return array{apiKey: string} This adapter cannot be serialized.
      * @throws RuntimeException Always; install runtime authentication explicitly.
