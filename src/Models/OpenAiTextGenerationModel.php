@@ -596,11 +596,17 @@ class OpenAiTextGenerationModel extends AbstractApiBasedModel implements TextGen
         if (is_array($functionDeclarations)) {
             foreach ($functionDeclarations as $functionDeclaration) {
                 $openAiName = $this->openAiFunctionName($functionDeclaration->getName());
+                /*
+                 * Strict mode is turned off, so that the schema is used as it is: optional
+                 * properties stay optional, and keywords strict mode does not support, such as
+                 * `uniqueItems`, do not make the API reject the request.
+                 */
                 $tools[] = [
                     'type' => 'function',
                     'name' => $openAiName,
                     'description' => $functionDeclaration->getDescription(),
                     'parameters' => $functionDeclaration->getParameters(),
+                    'strict' => false,
                 ];
             }
         }
