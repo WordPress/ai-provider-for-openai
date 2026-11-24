@@ -328,6 +328,59 @@ class OpenAiTextGenerationModelTest extends TestCase
     }
 
     /**
+     * Tests that function tools turn off strict mode and keep their parameters unchanged.
+     *
+     * @since n.e.x.t
+     */
+    public function testFunctionToolsTurnOffStrictMode(): void
+    {
+        $parameters = [
+            'type' => 'object',
+            'properties' => [
+                'ids' => [
+                    'type' => 'array',
+                    'items' => ['type' => 'integer'],
+                    'uniqueItems' => true,
+                ],
+            ],
+        ];
+
+        $params = $this->prepareParams([
+            'functionDeclarations' => [
+                [
+                    'name' => 'query_items',
+                    'description' => 'Queries items.',
+                    'parameters' => $parameters,
+                ],
+                [
+                    'name' => 'get_info',
+                    'description' => 'Gets the information.',
+                ],
+            ],
+        ]);
+
+        $this->assertSame(
+            [
+                [
+                    'type' => 'function',
+                    'name' => 'query_items',
+                    'description' => 'Queries items.',
+                    'parameters' => $parameters,
+                    'strict' => false,
+                ],
+                [
+                    'type' => 'function',
+                    'name' => 'get_info',
+                    'description' => 'Gets the information.',
+                    'parameters' => null,
+                    'strict' => false,
+                ],
+            ],
+            $params['tools']
+        );
+    }
+
+    /**
      * Parses a Responses API output list into a generative AI result.
      *
      * @param list<array<string, mixed>> $output The response output items.
